@@ -87,7 +87,7 @@ class Enpassant:
         name = name.lower ()
         self.c.execute("SELECT * FROM Cards")
         cards = self.c.fetchall()
-        with open( getScriptPath() + '/.enpassant', 'w' ) as f:
+        with open( getScriptPath() + '/.enpass', 'w' ) as f:
             for card in cards:
                 dec = self.decrypt(card["Data"], self.crypto["key"], self.crypto["iv"])
                 card = json.loads(dec)
@@ -100,7 +100,7 @@ class Enpassant:
 
 def CardCompleter(prefix, **kwargs):
     prefix = prefix.lower()
-    return list(line for line in open( getScriptPath() + '/.enpassant','r' ).read().splitlines() if line.startswith(prefix))
+    return list(line for line in open( getScriptPath() + '/.enpass','r' ).read().splitlines() if line.startswith(prefix))
 
 def main(argv=None):
     import sys
