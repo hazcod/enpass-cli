@@ -1,5 +1,6 @@
 # enpass-cli
 Enpass commandline client
+Based on (encpass-decryptor by steffen9000)[https://github.com/steffen9000/enpass-decryptor]
 
 -- Installation
 Required system packages: `sqlcipher-dev` `python3` `xclip` `git`
