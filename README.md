@@ -1,8 +1,10 @@
 # enpass-cli
 Enpass commandline client
+
 Based on [encpass-decryptor by steffen9000](https://github.com/steffen9000/enpass-decryptor)
 
 -- Installation
+
 Required system packages: `sqlcipher-dev` `python3` `xclip` `git`
 
 Get the code:             `git clone https://github.com/HazCod/enpass-cli pass && cd pass/`
@@ -15,6 +17,7 @@ Symlink to 'pass':	  `sudo ln -s /usr/bin/pass pass/pass.py && sudo chown $USER 
 
 
 -- Usage
+
 `pass --help`
 
 `pass -w=/home/user/Enpass/walletx.db get github`
