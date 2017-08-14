@@ -1,2 +1,3 @@
+pycrypto
 pysqlcipher3
 argcomplete
