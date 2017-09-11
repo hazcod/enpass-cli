@@ -1,5 +1,5 @@
 # enpass-cli
-Mac OS X Enpass commandline client
+Linux and Mac OS X Enpass commandline client
 
 Based on [encpass-decryptor by steffen9000](https://github.com/steffen9000/enpass-decryptor), this repository forked from [enpass-cli](https://github.com/HazCod/enpass-cli)
 
@@ -31,3 +31,7 @@ Specify another walletx file using the -w argument:
 `pass -w=/Users/user/alternate-dir/walletx.db get github`
 
 `pass -w=/Users/user/alternate-dir/walletx.db copy github`
+
+
+ Delete password stored in keyring:
+ python3
