@@ -15,7 +15,6 @@ import sys
 
 
 ## Set up wallet variable. Change wallet variable to other location if needed
-global wallet
 wallet = os.getenv('HOME') + '/Documents/Enpass/walletx.db'
 
 if sys.platform == 'darwin':
@@ -116,6 +115,7 @@ def CardCompleter(prefix, **kwargs):
 
 def main(argv=None):
     import sys
+    global wallet
 
     command = ''
     name    = ''
@@ -140,7 +140,8 @@ def main(argv=None):
             sys.exit(1)
 
         command = argv[0]
-        wallet  = argv[1]
+        if not wallet:
+            wallet  = argv[1]
         name    = argv[2]
 
     if (args.command is None or args.command not in ['copy','get']):
