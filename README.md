@@ -9,7 +9,7 @@ Required system packages: `sqlcipher-dev` `python3`  `git`
 
 Get the code:             `git clone https://github.com/heywoodlh/enpass-cli pass && cd pass/`
 
-Required python packages: `python -m pip install -r requirements.txt`
+Required python packages: `pip3 install -r requirements.txt`
 
 Add this to your .bashrc: `eval "$(register-python-argcomplete pass)"`
 
