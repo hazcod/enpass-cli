@@ -26,9 +26,9 @@ if sys.platform == 'darwin':
 
 if sys.platform == 'linux':
     def copyToClip(message):
-    p = subprocess.Popen(['xclip', '-in', '-selection', 'clipboard'],
-                         stdin=subprocess.PIPE, close_fds=True)
-    p.communicate(input=message.encode('utf-8'))
+        p = subprocess.Popen(['xclip', '-in', '-selection', 'clipboard'],
+                            stdin=subprocess.PIPE, close_fds=True)
+        p.communicate(input=message.encode('utf-8'))
 
 def pad(msg):
     return " "*2 + msg.ljust(18)
