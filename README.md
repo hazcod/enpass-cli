@@ -1,13 +1,13 @@
 # enpass-cli
 Linux and Mac OS X Enpass commandline client
 
-Based on [encpass-decryptor by steffen9000](https://github.com/steffen9000/enpass-decryptor), this repository forked from [enpass-cli](https://github.com/HazCod/enpass-cli)
+Based on [encpass-decryptor by steffen9000](https://github.com/steffen9000/enpass-decryptor)
 
 -- Installation
 
 Required system packages: `sqlcipher-dev` `python3`  `git`
 
-Get the code:             `git clone https://github.com/heywoodlh/enpass-cli pass && cd pass/`
+Get the code:             `git clone https://github.com/HazCod/enpass-cli pass && cd pass/`
 
 Required python packages: `python -m pip install -r requirements.txt`
 
