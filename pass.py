@@ -164,7 +164,7 @@ def main(argv=None):
     else:
         password = keyring.get_password('enpass', 'enpass')
 
-    en = Enpassant(wallet, password)
+    en = Enpassant(wallet, str(password))
     cards = en.getCards( name )
 
     if command == "copy":
