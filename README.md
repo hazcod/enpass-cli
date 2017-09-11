@@ -7,7 +7,7 @@ Based on [encpass-decryptor by steffen9000](https://github.com/steffen9000/enpas
 
 Required system packages: `sqlcipher-dev` `python3`  `git`
 
-Get the code:             `git clone https://github.com/HazCod/enpass-cli pass && cd pass/`
+Get the code:             `git clone https://github.com/heywoodlh/enpass-cli pass && cd pass/`
 
 Required python packages: `python -m pip install -r requirements.txt`
 
