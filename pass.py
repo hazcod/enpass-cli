@@ -14,7 +14,7 @@ import argparse, argcomplete
 import sys
 
 def copyToClip(message):
-    p = subprocess.Popen(['xclip', '-in', '-selection', 'clipboard'],
+    p = subprocess.Popen(['pbcopy'],
                          stdin=subprocess.PIPE, close_fds=True)
     p.communicate(input=message.encode('utf-8'))
 
@@ -28,8 +28,8 @@ class Enpassant:
     def __init__(self, filename, password):
         self.initDb(filename, password)
         self.crypto = self.getCryptoParams()
-        
-        
+
+
     # Sets up SQLite DB
     def initDb(self, filename, password):
         self.conn = sqlite.connect(filename)
@@ -37,11 +37,11 @@ class Enpassant:
         self.c.row_factory = sqlite.Row
         self.c.execute("PRAGMA key='" + password + "'")
         self.c.execute("PRAGMA kdf_iter = 24000")
-   
+
     def generateKey(self, key, salt):
         # 2 Iterations of PBKDF2 SHA256
-        return hashlib.pbkdf2_hmac('sha256', key, salt, 2)  
-          
+        return hashlib.pbkdf2_hmac('sha256', key, salt, 2)
+
     def getCryptoParams(self):
         ret = {}
         # Identity contains stuff to decrypt data columns
@@ -52,10 +52,10 @@ class Enpassant:
             sys.exit(1)
 
         identity = self.c.fetchone()
-        
+
         # Info contains more parameters
         info = identity["Info"]
-        
+
         # Get params from stream
         i = 16 # First 16 bytes are for "mHashData", which is unused
         ret["iv"] = bytearray()
@@ -66,21 +66,21 @@ class Enpassant:
         while i <= 47:
             salt.append( info[i] )
             i += 1
-            
+
         ret["iv"]  = bytes(ret["iv"])
         ret["key"] = self.generateKey(identity["Hash"].encode('utf-8'), salt)
-            
+
         return ret
-        
+
     def unpad(self, s):
         return s[0:-ord(s[-1])]
-    
+
 
     def decrypt(self, enc, key, iv ):
         # PKCS5
         cipher = AES.new(key, AES.MODE_CBC, iv )
         return self.unpad(str(cipher.decrypt(enc), 'utf-8'))
-        
+
 
     def getCards(self, name):
         results = []
@@ -95,7 +95,7 @@ class Enpassant:
                     results.append( card )
 
                 f.write( card['name'].lower() + "\n" )
-    
+
         return results
 
 def CardCompleter(prefix, **kwargs):
@@ -160,7 +160,7 @@ def main(argv=None):
             if (command == "get"):
                 print( pad(field['label']) + " : " + field['value'] )
             if command == 'copy':
-                if field['type'] == 'password': 
+                if field['type'] == 'password':
                     copyToClip( field['value'] )
                 elif field['type'] == 'username':
                     print( 'Copied for user ' + field['value'] )
@@ -170,4 +170,3 @@ def main(argv=None):
 
 if __name__ == "__main__":
     exit( main() )
-
