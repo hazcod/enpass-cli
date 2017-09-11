@@ -18,8 +18,15 @@ import sys
 global wallet
 wallet = os.getenv('HOME') + '/Documents/Enpass/walletx.db'
 
-def copyToClip(message):
-    p = subprocess.Popen(['pbcopy'],
+if sys.platform == 'darwin':
+    def copyToClip(message):
+        p = subprocess.Popen(['pbcopy'],
+                            stdin=subprocess.PIPE, close_fds=True)
+        p.communicate(input=message.encode('utf-8'))
+
+if sys.platform == 'linux':
+    def copyToClip(message):
+    p = subprocess.Popen(['xclip', '-in', '-selection', 'clipboard'],
                          stdin=subprocess.PIPE, close_fds=True)
     p.communicate(input=message.encode('utf-8'))
 
