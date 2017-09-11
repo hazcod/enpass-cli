@@ -20,6 +20,14 @@ Symlink to 'pass':	  `sudo ln -s /usr/bin/pass pass/pass.py && sudo chown $USER 
 
 `pass --help`
 
-`pass -w=/home/user/Enpass/walletx.db get github`
+If enpass has already been initialized and using the default ~/Documents/Enpass/walletx.db use this syntax:
 
-`pass -w=/home/user/Enpass/walletx.db copy github`
+`pass get github`
+
+`pass copy github`
+
+Specify another walletx file using the -w argument:
+
+`pass -w=/Users/user/alternate-dir/walletx.db get github`
+
+`pass -w=/Users/user/alternate-dir/walletx.db copy github`
