@@ -23,7 +23,7 @@ if sys.platform == 'darwin':
         p.communicate(input=message.encode('utf-8'))
 
 if sys.platform == 'linux':
-    from sqlite3 import dbapi2
+    from sqlite3 import dbapi2 as sqlite
     def copyToClip(message):
         p = subprocess.Popen(['xclip', '-in', '-selection', 'clipboard'],
                             stdin=subprocess.PIPE, close_fds=True)
