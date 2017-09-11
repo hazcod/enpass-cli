@@ -160,7 +160,7 @@ def main(argv=None):
     if password_saved is None:
         response = input('Would you like to save your master password in the keyring? (Y/n)')
         if response == 'Y':
-            keyring.set_password('enpass', 'enpass', password)
+            keyring.set_password('enpass', 'enpass', str(password))
     else:
         password = keyring.get_password('enpass', 'enpass')
 
