@@ -123,7 +123,7 @@ def main(argv=None):
         parser = argparse.ArgumentParser ()
 
         parser.add_argument('-w', '--wallet', help='The Enpass wallet file')
-        parser.add_argument("command", choices=('get', 'copy', 'list'), help="Show entry, list all entries, copy password")
+        parser.add_argument("command", choices=('get', 'copy'), help="Show entry, copy password")
         parser.add_argument("name", help="The entry name").completer = CardCompleter
 
         argcomplete.autocomplete( parser )
@@ -143,8 +143,8 @@ def main(argv=None):
             wallet  = argv[1]
         name    = argv[2]
 
-    if (args.command is None or args.command not in ['copy','get', 'list']):
-        print("Command: copy, get, list")
+    if (args.command is None or args.command not in ['copy','get']):
+        print("Command: copy, get")
         sys.exit(1)
 
     if not os.path.isfile( wallet ):
@@ -190,9 +190,6 @@ def main(argv=None):
 
         if (command == 'get'):
             print( pad('Note') + " :\n" + card['note'] )
-
-        if command == 'list':
-            print(cards)
 
 if __name__ == "__main__":
     exit( main() )
