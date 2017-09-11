@@ -1,3 +1,4 @@
-pycrypto
-pysqlcipher3
-argcomplete
+argcomplete==1.9.2
+keyring==10.4.0
+pycrypto==2.6.1
+pysqlcipher3==1.0.2
