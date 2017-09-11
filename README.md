@@ -33,5 +33,5 @@ Specify another walletx file using the -w argument:
 `pass -w=/Users/user/alternate-dir/walletx.db copy github`
 
 
- Delete password stored in keyring:
- python3
+ Delete password stored in keyring for OS X users:
+ python3 -c "import keyring; keyring.delete_password('enpass', 'enpass')"
