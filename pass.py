@@ -12,7 +12,7 @@ import subprocess
 import os
 import argparse, argcomplete
 import sys
-
+import keyring
 
 ## Set up wallet variable. Change wallet variable to other location if needed
 wallet = os.getenv('HOME') + '/Documents/Enpass/walletx.db'
@@ -92,7 +92,6 @@ class Enpassant:
         cipher = AES.new(key, AES.MODE_CBC, iv )
         return self.unpad(str(cipher.decrypt(enc), 'utf-8'))
 
-
     def getCards(self, name):
         results = []
         name = name.lower ()
@@ -124,7 +123,7 @@ def main(argv=None):
         parser = argparse.ArgumentParser ()
 
         parser.add_argument('-w', '--wallet', help='The Enpass wallet file')
-        parser.add_argument("command", choices=('get', 'copy'), help="Show entry or copy password")
+        parser.add_argument("command", choices=('get', 'copy', 'list'), help="Show entry, list all entries, copy password")
         parser.add_argument("name", help="The entry name").completer = CardCompleter
 
         argcomplete.autocomplete( parser )
@@ -144,15 +143,27 @@ def main(argv=None):
             wallet  = argv[1]
         name    = argv[2]
 
-    if (args.command is None or args.command not in ['copy','get']):
-        print("Command: copy, get")
+    if (args.command is None or args.command not in ['copy','get', 'list']):
+        print("Command: copy, get, list")
         sys.exit(1)
 
     if not os.path.isfile( wallet ):
         print("Wallet not found: " + wallet)
         sys.exit(1)
 
-    password = getpass.getpass( "Master Password:" )
+    password_saved = keyring.get_password('enpass', 'enpass')
+    if password_saved is None:
+        password = getpass.getpass( "Master Password:" )
+    else:
+        password = password_saved
+
+    if password_saved is None:
+        response = input('Would you like to save your master password in the keyring? (Y/n)')
+        if response == 'Y':
+            keyring.set_password('enpass', 'enpass', password)
+    else:
+        password = keyring.get_password('enpass', 'enpass')
+
     en = Enpassant(wallet, password)
     cards = en.getCards( name )
 
@@ -179,6 +190,9 @@ def main(argv=None):
 
         if (command == 'get'):
             print( pad('Note') + " :\n" + card['note'] )
+
+        if command == 'list':
+            print(cards)
 
 if __name__ == "__main__":
     exit( main() )
