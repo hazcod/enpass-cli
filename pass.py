@@ -13,6 +13,11 @@ import os
 import argparse, argcomplete
 import sys
 
+
+## Set up wallet variable. Change wallet variable to other location if needed
+global wallet
+wallet = os.getenv('HOME') + '/Documents/Enpass/walletx.db'
+
 def copyToClip(message):
     p = subprocess.Popen(['pbcopy'],
                          stdin=subprocess.PIPE, close_fds=True)
@@ -105,7 +110,6 @@ def CardCompleter(prefix, **kwargs):
 def main(argv=None):
     import sys
 
-    wallet  = '/home/niels/Documents/Enpass/walletx.db'
     command = ''
     name    = ''
 
