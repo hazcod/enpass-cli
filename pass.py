@@ -105,12 +105,14 @@ class Enpassant:
                     results.append( card )
 
                 f.write( card['name'].lower() + "\n" )
-
         return results
+
 
 def CardCompleter(prefix, **kwargs):
     prefix = prefix.lower()
     return list(line for line in open( getScriptPath() + '/.enpass','r' ).read().splitlines() if line.startswith(prefix))
+
+
 
 def main(argv=None):
     import sys
@@ -164,7 +166,7 @@ def main(argv=None):
                 keyring.set_password('enpass', 'enpass', str(password))
             else:
                 password = keyring.get_password('enpass', 'enpass')
-                
+
     if sys.platform == 'linux':
         password = getpass.getpass( "Master Password:" )
 
@@ -176,8 +178,31 @@ def main(argv=None):
             print( "No entries for " + name )
             sys.exit(1)
         elif len(cards) > 1:
-            print( "Multiple entries for " + name )
-            sys.exit(1)
+            value = 0
+            multi_cards = []
+            pass_list = []
+            for card in cards:
+                value += 1
+                print( pad("Name") + " : " + card["name"] + str(value) )
+                cardName = card["name"] + str(value)
+                multi_cards.append( cardName )
+                for field in sorted( card["fields"], key=lambda x:x['label'] ):
+                    #print( pad(field['label']) +  " : " + field['type'])
+                    if field['type'] == 'username':
+                        print(field['value'])
+                    elif field['type'] == 'email':
+                        print( pad(field['label']) + " : " + field['value'] )
+                    if field['type'] == 'password':
+                        pass_list.append( field['value'] )
+
+                print('')
+
+            print(multi_cards)
+            selection = input('Select account: ')
+            index_num = multi_cards.index(selection)
+            copyToClip( pass_list[index_num] )
+            sys.exit(0)
+
 
     for card in cards:
         if (command == "get"):
