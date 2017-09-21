@@ -196,12 +196,19 @@ def main(argv=None):
                         pass_list.append( field['value'] )
 
                 print('')
+            try:
+                print('')
+                print('Accounts: ')
+                print(multi_cards)
+                print('')
+                selection = input('Select account: ')
+                index_num = multi_cards.index(selection)
+                copyToClip( pass_list[index_num] )
+                sys.exit(0)
+            except ValueError:
+                print('Invalid selection')
+                sys.exit(1)
 
-            print(multi_cards)
-            selection = input('Select account: ')
-            index_num = multi_cards.index(selection)
-            copyToClip( pass_list[index_num] )
-            sys.exit(0)
 
 
     for card in cards:
