@@ -7,13 +7,13 @@ Based on [encpass-decryptor by steffen9000](https://github.com/steffen9000/enpas
 
 Required system packages: `sqlcipher-dev` `python3`  `git`
 
-Get the code:             `git clone https://github.com/HazCod/enpass-cli pass && cd pass/`
+Get the code:             `git clone https://github.com/heywoodlh/enpass-cli pass && cd pass/`
 
-Required python packages: `python -m pip install -r requirements.txt`
+Required python packages: `pip3 install -r requirements.txt`
 
 Add this to your .bashrc: `eval "$(register-python-argcomplete pass)"`
 
-Symlink to 'pass':	  `sudo ln -s /usr/bin/pass pass/pass.py && sudo chown $USER /usr/bin/pass && chown 555 /usr/bin/pass`
+Symlink to 'pass':	  `sudo cp pass.py /usr/local/bin/pass && sudo chown $USER /usr/local/bin/pass`
 
 
 -- Usage
