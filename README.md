@@ -1,7 +1,7 @@
 # enpass-cli
 Linux and Mac OS X Enpass commandline client
 
-Based on [encpass-decryptor by steffen9000](https://github.com/steffen9000/enpass-decryptor)
+Based on [enpass-decryptor by steffen9000](https://github.com/steffen9000/enpass-decryptor)
 
 -- Installation
 
