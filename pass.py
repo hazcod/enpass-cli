@@ -12,6 +12,9 @@ import argparse, argcomplete
 import sys
 import keyring
 
+##To get all types of information decrypted run this:
+#print( pad(field['label']) +  " : " + field['type'])
+
 ## Set up wallet variable. Change wallet variable to other location if needed
 wallet = os.getenv('HOME') + '/Documents/Enpass/walletx.db'
 
@@ -105,12 +108,14 @@ class Enpassant:
                     results.append( card )
 
                 f.write( card['name'].lower() + "\n" )
-
         return results
+
 
 def CardCompleter(prefix, **kwargs):
     prefix = prefix.lower()
     return list(line for line in open( getScriptPath() + '/.enpass','r' ).read().splitlines() if line.startswith(prefix))
+
+
 
 def main(argv=None):
     import sys
@@ -164,7 +169,7 @@ def main(argv=None):
                 keyring.set_password('enpass', 'enpass', str(password))
             else:
                 password = keyring.get_password('enpass', 'enpass')
-                
+
     if sys.platform == 'linux':
         password = getpass.getpass( "Master Password:" )
 
@@ -176,8 +181,37 @@ def main(argv=None):
             print( "No entries for " + name )
             sys.exit(1)
         elif len(cards) > 1:
-            print( "Multiple entries for " + name )
-            sys.exit(1)
+            value = 0
+            multi_cards = []
+            pass_list = []
+            for card in cards:
+                value += 1
+                print( str(value) + '. ' + card["name"] )
+                cardName = card["name"] + str(value)
+                multi_cards.append( value )
+                for field in sorted( card["fields"], key=lambda x:x['label'] ):
+                    #print( pad(field['label']) +  " : " + field['type'])
+                    if field['type'] == 'username':
+                        print( pad(field['label']) + " : " + field['value'])
+                    elif field['type'] == 'email':
+                        print( pad(field['label']) + " : " + field['value'] )
+                    if field['type'] == 'password':
+                        pass_list.append( field['value'] )
+
+                print('')
+            try:
+                print('')
+                print( name + ' accounts: ')
+                print(multi_cards)
+                print('')
+                selection = input('Select account: ')
+                copyToClip( pass_list[int(selection)] )
+                sys.exit(0)
+            except ValueError:
+                print('Invalid selection')
+                sys.exit(1)
+
+
 
     for card in cards:
         if (command == "get"):
@@ -185,7 +219,15 @@ def main(argv=None):
 
         for field in sorted( card["fields"], key=lambda x:x['label'] ):
             if (command == "get"):
-                print( pad(field['label']) + " : " + field['value'] )
+                if field['type'] == 'username':
+                    print( pad(field['label']) + " : " + field['value'])
+                elif field['type'] == 'email':
+                    print( pad(field['label']) + " : " + field['value'] )
+                elif field['type'] == 'url':
+                    print( pad(field['label']) + " : " + field['value'] )
+                elif field['type'] == 'text':
+                    print( pad(field['label']) + " : " + field['value'] )
+
             if command == 'copy':
                 if field['type'] == 'password':
                     copyToClip( field['value'] )
