@@ -12,6 +12,9 @@ import argparse, argcomplete
 import sys
 import keyring
 
+##To get all types of information decrypted run this:
+#print( pad(field['label']) +  " : " + field['type'])
+
 ## Set up wallet variable. Change wallet variable to other location if needed
 wallet = os.getenv('HOME') + '/Documents/Enpass/walletx.db'
 
@@ -183,13 +186,13 @@ def main(argv=None):
             pass_list = []
             for card in cards:
                 value += 1
-                print( pad("Name") + " : " + card["name"] + str(value) )
+                print( str(value) + '. ' + card["name"] )
                 cardName = card["name"] + str(value)
-                multi_cards.append( cardName )
+                multi_cards.append( value )
                 for field in sorted( card["fields"], key=lambda x:x['label'] ):
                     #print( pad(field['label']) +  " : " + field['type'])
                     if field['type'] == 'username':
-                        print(field['value'])
+                        print( pad(field['label']) + " : " + field['value'])
                     elif field['type'] == 'email':
                         print( pad(field['label']) + " : " + field['value'] )
                     if field['type'] == 'password':
@@ -198,12 +201,11 @@ def main(argv=None):
                 print('')
             try:
                 print('')
-                print('Accounts: ')
+                print( name + ' accounts: ')
                 print(multi_cards)
                 print('')
                 selection = input('Select account: ')
-                index_num = multi_cards.index(selection)
-                copyToClip( pass_list[index_num] )
+                copyToClip( pass_list[int(selection)] )
                 sys.exit(0)
             except ValueError:
                 print('Invalid selection')
@@ -217,7 +219,15 @@ def main(argv=None):
 
         for field in sorted( card["fields"], key=lambda x:x['label'] ):
             if (command == "get"):
-                print( pad(field['label']) + " : " + field['value'] )
+                if field['type'] == 'username':
+                    print( pad(field['label']) + " : " + field['value'])
+                elif field['type'] == 'email':
+                    print( pad(field['label']) + " : " + field['value'] )
+                elif field['type'] == 'url':
+                    print( pad(field['label']) + " : " + field['value'] )
+                elif field['type'] == 'text':
+                    print( pad(field['label']) + " : " + field['value'] )
+
             if command == 'copy':
                 if field['type'] == 'password':
                     copyToClip( field['value'] )
