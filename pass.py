@@ -159,7 +159,7 @@ def main(argv=None):
     if sys.platform == 'darwin':
         password_saved = keyring.get_password('enpass', 'enpass')
         if password_saved is None:
-            password = getpass.getpass( "Master Password:" )
+            password = getpass.getpass( "Master Password: " )
         else:
             password = password_saved
 
@@ -171,7 +171,7 @@ def main(argv=None):
                 password = keyring.get_password('enpass', 'enpass')
 
     if sys.platform == 'linux':
-        password = getpass.getpass( "Master Password:" )
+        password = getpass.getpass( "Master Password: " )
 
     en = Enpassant(wallet, str(password))
     cards = en.getCards( name )
