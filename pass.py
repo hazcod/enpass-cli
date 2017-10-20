@@ -157,21 +157,15 @@ def main(argv=None):
         sys.exit(1)
 
     if sys.platform == 'darwin':
-        password_saved = keyring.get_password('enpass', 'enpass')
-        if password_saved is None:
-            password = getpass.getpass( "Master Password:" )
-        else:
-            password = password_saved
-
-        if password_saved is None:
-            response = input('Would you like to save your master password in the keyring? (Y/n)')
-            if response == 'Y':
+        password = keyring.get_password('enpass', 'enpass')
+        if password is None:
+            password = getpass.getpass( "Master Password: " )
+            response = input('Would you like to save your master password in the keyring? (Y/n)').lower()
+            if response == 'y' or response == '':
                 keyring.set_password('enpass', 'enpass', str(password))
-            else:
-                password = keyring.get_password('enpass', 'enpass')
 
     if sys.platform == 'linux':
-        password = getpass.getpass( "Master Password:" )
+        password = getpass.getpass( "Master Password: " )
 
     en = Enpassant(wallet, str(password))
     cards = en.getCards( name )
