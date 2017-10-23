@@ -7,7 +7,7 @@ Based on [enpass-decryptor by steffen9000](https://github.com/steffen9000/enpass
 
 Required system packages: `sqlcipher-dev` `python3`  `git`
 
-Get the code:             `git clone https://github.com/heywoodlh/enpass-cli pass && cd pass/`
+Get the code:             `git clone https://github.com/HazCod/enpass-cli pass && cd pass/`
 
 Required python packages: `pip3 install -r requirements.txt`
 
@@ -33,5 +33,5 @@ Specify another walletx file using the -w argument:
 `pass -w=/Users/user/alternate-dir/walletx.db copy github`
 
 
- Delete password stored in keyring for OS X users:
+ Delete password stored in keyring:
  python3 -c "import keyring; keyring.delete_password('enpass', 'enpass')"
