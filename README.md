@@ -34,4 +34,11 @@ Specify another walletx file using the -w argument:
 
 
  Delete password stored in keyring:
- python3 -c "import keyring; keyring.delete_password('enpass', 'enpass')"
+ 
+ `python3 -c "import keyring; keyring.delete_password('enpass', 'enpass')"`
+
+
+
+If you decline to store your password, an empty file is created in ~/Documents/Enpass/ called .store_decline. If you change your mind and would like to store the password, remove this file:
+
+`rm ~/Documents/Enpass/.store_decline`
