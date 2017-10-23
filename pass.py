@@ -19,6 +19,8 @@ from pysqlcipher3 import dbapi2 as sqlite
 ## Set up wallet variable. Change wallet variable to other location if needed
 wallet = os.getenv('HOME') + '/Documents/Enpass/walletx.db'
 
+password_store_decline = os.getenv('HOME') + '/Documents/Enpass/.store_decline'
+
 if sys.platform == 'darwin':
     def copyToClip(message):
         p = subprocess.Popen(['pbcopy'],
@@ -155,16 +157,17 @@ def main(argv=None):
         print("Wallet not found: " + wallet)
         sys.exit(1)
 
-    if sys.platform == 'darwin':
-        password = keyring.get_password('enpass', 'enpass')
-        if password is None:
-            password = getpass.getpass( "Master Password: " )
+    password = keyring.get_password('enpass', 'enpass')
+    if password is None:
+        password = getpass.getpass( "Master Password: " )
+        if os.path.isfile(password_store_decline):
+            pass
+        else:
             response = input('Would you like to save your master password in the keyring? (Y/n)').lower()
             if response == 'y' or response == '':
                 keyring.set_password('enpass', 'enpass', str(password))
-
-    if sys.platform == 'linux':
-        password = getpass.getpass( "Master Password: " )
+            else:
+                open(password_store_decline, 'w')
 
     en = Enpassant(wallet, str(password))
     cards = en.getCards( name )
