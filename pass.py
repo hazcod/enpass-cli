@@ -11,6 +11,7 @@ import os
 import argparse, argcomplete
 import sys
 import keyring
+from pysqlcipher3 import dbapi2 as sqlite
 
 ##To get all types of information decrypted run this:
 #print( pad(field['label']) +  " : " + field['type'])
@@ -19,14 +20,12 @@ import keyring
 wallet = os.getenv('HOME') + '/Documents/Enpass/walletx.db'
 
 if sys.platform == 'darwin':
-    from pysqlcipher3 import dbapi2 as sqlite
     def copyToClip(message):
         p = subprocess.Popen(['pbcopy'],
                             stdin=subprocess.PIPE, close_fds=True)
         p.communicate(input=message.encode('utf-8'))
 
 if sys.platform == 'linux':
-    from sqlite3 import dbapi2 as sqlite
     def copyToClip(message):
         p = subprocess.Popen(['xclip', '-in', '-selection', 'clipboard'],
                             stdin=subprocess.PIPE, close_fds=True)
