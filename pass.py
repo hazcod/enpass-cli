@@ -201,6 +201,7 @@ def main(argv=None):
                 print(multi_cards)
                 print('')
                 selection = input('Select account: ')
+                selection = int(selection) - 1
                 copyToClip( pass_list[int(selection)] )
                 sys.exit(0)
             except ValueError:
