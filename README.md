@@ -1,44 +1,77 @@
 # enpass-cli
-Linux and Mac OS X Enpass commandline client
 
-Based on [enpass-decryptor by steffen9000](https://github.com/steffen9000/enpass-decryptor)
+A Enpass command line client for Linux and macOS based on [enpass-decryptor](https://github.com/steffen9000/enpass-decryptor) by steffen9000.
 
--- Installation
+## Installation
 
-Required system packages: `sqlcipher-dev` `python3`  `git`
+1. Required system packages:
 
-Get the code:             `git clone https://github.com/HazCod/enpass-cli pass && cd pass/`
+	 - `sqlcipher-dev`
+	 - `python3`
+	 - `git`
 
-Required python packages: `pip3 install -r requirements.txt`
+2. Get the code:
 
-Add this to your .bashrc: `eval "$(register-python-argcomplete pass)"`
+	`git clone https://github.com/HazCod/enpass-cli pass && cd pass/`
 
-Symlink to 'pass':	  `sudo cp pass.py /usr/local/bin/pass && sudo chown $USER /usr/local/bin/pass`
+3. Required python packages:
 
+	`pip3 install -r requirements.txt`
 
--- Usage
+4. Symlink to 'pass':
 
-`pass --help`
+	`sudo cp pass.py /usr/local/bin/pass && sudo chown $USER /usr/local/bin/pass`
 
-If enpass has already been initialized and using the default ~/Documents/Enpass/walletx.db use this syntax:
+5. For autocompletion, add this line to your `.bashrc` file:
 
-`pass get github`
+	`eval "$(register-python-argcomplete pass)"`
 
-`pass copy github`
+## Usage
 
-Specify another walletx file using the -w argument:
+For the current command line help, please run `pass --help`.
 
-`pass -w=/Users/user/alternate-dir/walletx.db get github`
+The `pass` command currently accepts the following arguments and commands:
 
-`pass -w=/Users/user/alternate-dir/walletx.db copy github`
+Arguments:
 
+ - `-q`, `--quiet`\
+ 	supress Standard Output Notifications
 
- Delete password stored in keyring:
+ - `-w WALLET`, `--wallet WALLET`\
+ 	Define the Enpass wallet file
+
+ - `-a`, `--alldata`\
+ 	Displays all of the known data in of each card (useful in cases where you want to look at *Software Licences*, for instance)
+
+ - `--please_show_me_the_passwords`\
+ 	Display passwords where present
+
+Commands:
+
+ - `get` and `list` displays the cards on the command line (use '*' to list all),
+ - `copy` copies the password into the pasteboard, and
+ - `print` prints the password to STDOUT iff `--please_show_me_the_passwords` has been given.
+
+Examples:
+
+1. If enpass has already been initialized and using the default `~/Documents/Enpass/walletx.db` use this syntax:
+
+		$ pass get github
+		$ pass copy github
+
+2. Specify another walletx file using the -w argument:
+
+		$ pass -w /Users/user/alternate-dir/walletx.db get github
+		$ pass -w /Users/user/alternate-dir/walletx.db copy github
+
+3. Delete password stored in keyring:
  
- `python3 -c "import keyring; keyring.delete_password('enpass', 'enpass')"`
+		$ python3 -c "import keyring; keyring.delete_password('enpass', 'enpass')"
 
+4. If you decline to store your password, an empty file is created in ~/Documents/Enpass/ called .store_decline. If you change your mind and would like to store the password, remove this file:
 
+		$ rm ~/Documents/Enpass/.store_decline
 
-If you decline to store your password, an empty file is created in ~/Documents/Enpass/ called .store_decline. If you change your mind and would like to store the password, remove this file:
+5. Dsiplay all known items about an entry:
 
-`rm ~/Documents/Enpass/.store_decline`
+		$ pass list -a Chikoo
