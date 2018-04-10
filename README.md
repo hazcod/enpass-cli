@@ -12,19 +12,19 @@ A Enpass command line client for Linux and macOS based on [enpass-decryptor](htt
 
 2. Get the code:
 
-	`git clone https://github.com/HazCod/enpass-cli pass && cd pass/`
+		$ git clone https://github.com/HazCod/enpass-cli pass && cd pass/
 
 3. Required python packages:
 
-	`pip3 install -r requirements.txt`
+		$ pip3 install -r requirements.txt
 
 4. Symlink to 'pass':
 
-	`sudo cp pass.py /usr/local/bin/pass && sudo chown $USER /usr/local/bin/pass`
+		$ sudo cp pass.py /usr/local/bin/pass && sudo chown $USER /usr/local/bin/pass
 
 5. For autocompletion, add this line to your `.bashrc` file:
 
-	`eval "$(register-python-argcomplete pass)"`
+		$ eval "$(register-python-argcomplete pass)"
 
 ## Usage
 
