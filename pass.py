@@ -1,4 +1,4 @@
-#!/usr/bin/env /usr/local/bin/python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 # PYTHON_ARGCOMPLETE_OK
@@ -154,8 +154,8 @@ class Enpassant:
         self.conn = sqlite.connect(filename)
         self.c = self.conn.cursor()
         self.c.row_factory = sqlite.Row
-        self.c.execute("PRAGMA key='" + password + "'")
-        self.c.execute("PRAGMA kdf_iter = 24000")
+        self.c.execute('PRAGMA key="' + password.replace('"', '\"') + '"')
+        self.c.execute('PRAGMA kdf_iter = 24000')
 
     def generateKey(self, key, salt):
         # 2 Iterations of PBKDF2 SHA256
@@ -242,10 +242,7 @@ class PassCards:
             self.carddata[card['uuid']] = {}
             self.carddata[card['uuid']]['name'] = card['name']
 
-            # self.__warn("\n" + card['name'])
-
             for field in sorted(card["fields"], key=lambda x:x['label']):
-            # for field in card["fields"]:
 
                 if field['isdeleted'] == 1:         # Skip if deleted...
                     continue
@@ -278,6 +275,7 @@ class PassCards:
 
             if card['note'] != '':
                 self.carddata[card['uuid']]['note'] = card['note']
+
 
     def __pad(self, msg, length=12):
         return " "*2 + msg.ljust(length)
@@ -342,11 +340,8 @@ class PassCards:
         return (25, 80)
 
     def displayCards(self, alldata="no", passwords="no"):
-        import textwrap
-        wrapper = textwrap.TextWrapper()
-        wrapper.initial_indent = pad('') + "  "
-        wrapper.subsequent_indent = pad('') + "  "
-        wrapper.width = self.__getTermSize()[1]
+        import re
+        maxwrap = self.__getTermSize()[1] - len(pad('') + "  ")
 
         for uuid in sorted(self.carddata.keys()):
             print(self.carddata[uuid]['name'])
@@ -364,7 +359,9 @@ class PassCards:
                      print(self.carddata[uuid]['password'])
 
             if 'note' in self.carddata[uuid]:
-                print(self.__pad("Note") + ': ' + wrapper.fill(self.carddata[uuid]['note']).strip())
+                print("\n" + self.__pad("Note") + '| ' + \
+                        ('\n' + pad('') +  '| ').join(line.strip() for \
+                            line in re.findall(r'.{1,' + str(maxwrap) + '}(?:\s+|$)', self.carddata[uuid]['note'])))
 
             if alldata != 'no':
                 if 'additional' in self.carddata[uuid]:
