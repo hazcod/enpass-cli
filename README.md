@@ -2,6 +2,8 @@
 
 A Enpass command line client for Linux and macOS based on [enpass-decryptor](https://github.com/steffen9000/enpass-decryptor) by steffen9000.
 
+**Warning:** I no longer use Enpass personally, so this repo needs a new maintainer. I will however still merge PRs.
+
 ## Installation
 
 1. Required system packages:
