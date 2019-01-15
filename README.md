@@ -1,5 +1,7 @@
 # enpass-cli
 
+**WARNING:** This is currently not compatible with Enpass 6.0. I'm doing [some testing](https://github.com/HazCod/enpass-cli-test/), but no results yet.
+
 A Enpass command line client for Linux and macOS based on [enpass-decryptor](https://github.com/steffen9000/enpass-decryptor) by steffen9000.
 
 **Warning:** I no longer use Enpass personally, so this repo needs a new maintainer. I will however still merge PRs.
