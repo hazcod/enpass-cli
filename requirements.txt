@@ -5,7 +5,7 @@ cryptography==2.3
 idna==2.6
 keyring==10.4.0
 keyrings.alt==2.3
-pycparser==2.18
+pycparser==2.19
 pycrypto==2.6.1
 pysqlcipher3==1.0.3
 SecretStorage==2.3.1
