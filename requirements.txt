@@ -1,5 +1,5 @@
 argcomplete==1.9.2
-asn1crypto==0.23.0
+asn1crypto==0.24.0
 cffi==1.11.2
 cryptography==2.3
 idna==2.6
