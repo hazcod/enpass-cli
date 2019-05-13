@@ -1,6 +1,6 @@
+cffi==1.12.33
 asn1crypto==0.24.0
 argcomplete==1.10.0
-cffi==1.11.2
 pycparser==2.19
 cryptography==2.6.1
 idna==2.8
