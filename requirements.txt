@@ -3,7 +3,7 @@ asn1crypto==0.23.0
 cffi==1.11.2
 cryptography==2.3
 idna==2.6
-keyring==10.4.0
+keyring==19.0.1
 keyrings.alt==2.3
 pycparser==2.18
 pycrypto==2.6.1
