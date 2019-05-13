@@ -1,12 +1,12 @@
-argcomplete==1.9.2
+argcomplete==1.10.0
 asn1crypto==0.23.0
 cffi==1.11.2
 cryptography==2.3
 idna==2.8
-keyring==10.4.0
-keyrings.alt==2.3
+keyrings.alt==3.1.1
+keyring==19.0.1
 pycparser==2.18
 pycrypto==2.6.1
 pysqlcipher3==1.0.3
-SecretStorage==2.3.1
+SecretStorage==3.1.1
 six==1.11.0
