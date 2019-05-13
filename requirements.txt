@@ -1,11 +1,11 @@
 argcomplete==1.10.0
 asn1crypto==0.23.0
 cffi==1.11.2
+pycparser==2.19
 cryptography==2.6.1
 idna==2.8
 keyrings.alt==3.1.1
 keyring==19.0.1
-pycparser==2.18
 pycrypto==2.6.1
 pysqlcipher3==1.0.3
 six==1.12.0
