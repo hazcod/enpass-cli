@@ -5,7 +5,7 @@ pycparser==2.19
 cryptography==2.6.1
 idna==2.8
 keyrings.alt==3.1.1
-keyring==19.0.2
+keyring==19.1.0
 pycrypto==2.6.1
 pysqlcipher3==1.0.3
 six==1.12.0
