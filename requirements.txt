@@ -1,5 +1,5 @@
 cffi==1.12.33
-asn1crypto==1.0.1
+asn1crypto==1.1.0
 argcomplete==1.10.0
 pycparser==2.19
 cryptography==2.7
