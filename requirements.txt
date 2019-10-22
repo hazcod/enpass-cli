@@ -1,4 +1,4 @@
-cffi==1.13.0
+cffi==1.13.1
 asn1crypto==1.2.0
 argcomplete==1.10.0
 pycparser==2.19
