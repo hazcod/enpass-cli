@@ -4,7 +4,7 @@ argcomplete==1.10.3
 pycparser==2.19
 cryptography==2.8
 idna==2.8
-keyrings.alt==3.2.0
+keyrings.alt==3.4.0
 keyring==19.3.0
 pycrypto==2.6.1
 pysqlcipher3==1.0.3
