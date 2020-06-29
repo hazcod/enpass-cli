@@ -3,7 +3,7 @@ asn1crypto==1.3.0
 argcomplete==1.11.1
 pycparser==2.20
 cryptography==2.9.2
-idna==2.9
+idna==2.10
 keyrings.alt==3.4.0
 keyring==21.2.1
 pycrypto==2.6.1
