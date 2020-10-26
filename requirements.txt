@@ -2,7 +2,7 @@ cffi==1.14.3
 asn1crypto==1.4.0
 argcomplete==1.12.1
 pycparser==2.20
-cryptography==3.1.1
+cryptography==3.2
 idna==2.10
 keyrings.alt==3.5.2
 keyring==21.4.0
