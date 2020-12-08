@@ -27,4 +27,4 @@ $ go test -v $(go list ./... | grep -v /vendor/)
 
 Using the library
 -----------------
-See the documentation on [pkg.go.dev](https://go.pkg.dev/github.com/hazcod/enpass-cli/pkg/enpass/).
+See the documentation on [pkg.go.dev](https://pkg.go.dev/github.com/hazcod/enpass-cli/pkg/enpass).
