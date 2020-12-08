@@ -90,7 +90,7 @@ func copyEntry(logger *logrus.Logger, vault *enpass.Vault, cardType string, filt
 
 func main() {
 	vaultPath := flag.String("vault", "", "Path to your Enpass vault.")
-	cardType := flag.String("type", "", "The type of your card. (password, ...)")
+	cardType := flag.String("type", "password", "The type of your card. (password, ...)")
 	keyFilePath := flag.String("keyfile", "", "Path to your Enpass vault keyfile.")
 	logLevelStr := flag.String("log", defaultLogLevel.String(), "The log level from debug (5) to error (1).")
 	flag.Parse()
