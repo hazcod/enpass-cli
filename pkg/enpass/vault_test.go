@@ -33,12 +33,12 @@ func TestVault_GetEntries(t *testing.T) {
 		t.Errorf("vault initialization failed: %+v", err)
 	}
 
-	entries, err := vault.GetEntries("", nil)
+	entries, err := vault.GetEntries("password", nil)
 	if err != nil {
 		t.Errorf("vault get entries failed: %+v", err)
 	}
 
-	if len(entries) == 0 {
-		t.Error("empty entries returned")
+	if len(entries) != 1 {
+		t.Error("wrong number of entries returned")
 	}
 }

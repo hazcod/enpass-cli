@@ -66,6 +66,7 @@ type Card struct {
 	Title     string
 	Subtitle  string
 	Note      string
+	Deleted   int64
 	Category  string
 	Label     string
 	LastUsed  int64
@@ -76,7 +77,7 @@ type Card struct {
 }
 
 func (c *Card) IsDeleted() bool {
-	return len(c.itemKey) == 0
+	return c.Deleted != 0
 }
 
 func (c *Card) Decrypt() (string, error) {
