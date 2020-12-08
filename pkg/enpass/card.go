@@ -55,20 +55,20 @@ import (
 2020/12/08 08:59:36 > excluded
 2020/12/08 08:59:36 > pwned_check_time
 2020/12/08 08:59:36 > extra
- */
+*/
 
 type Card struct {
 	// plaintext
 	UUID      string
 	CreatedAt int64
-	Type 	  string
+	Type      string
 	UpdatedAt int64
 	Title     string
 	Subtitle  string
 	Note      string
-	Category string
-	Label    string
-	LastUsed int64
+	Category  string
+	Label     string
+	LastUsed  int64
 
 	// encrypted
 	value   string

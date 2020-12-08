@@ -7,7 +7,7 @@ import (
 
 const (
 	testPassword = "mymasterpassword"
-	vaultPath = "../../test/"
+	vaultPath    = "../../test/"
 )
 
 func TestVault_Initialize(t *testing.T) {

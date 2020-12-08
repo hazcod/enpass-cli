@@ -24,11 +24,13 @@ var (
 
 func listEntries(logger *logrus.Logger, vault *enpass.Vault, cardType string, filters []string) {
 	cards, err := vault.GetEntries(cardType, filters)
-	if err != nil { logger.WithError(err).Fatal("could not retrieve cards") }
+	if err != nil {
+		logger.WithError(err).Fatal("could not retrieve cards")
+	}
 	for _, card := range cards {
 		logger.Printf(
-			"> title: %s" +
-				"  login: %s" +
+			"> title: %s"+
+				"  login: %s"+
 				"  cat. : %s",
 			card.Title,
 			card.Subtitle,
@@ -39,15 +41,20 @@ func listEntries(logger *logrus.Logger, vault *enpass.Vault, cardType string, fi
 
 func showEntries(logger *logrus.Logger, vault *enpass.Vault, cardType string, filters []string) {
 	cards, err := vault.GetEntries(cardType, filters)
-	if err != nil { logger.WithError(err).Fatal("could not retrieve cards") }
+	if err != nil {
+		logger.WithError(err).Fatal("could not retrieve cards")
+	}
 	for _, card := range cards {
 		password, err := card.Decrypt()
-		if err != nil { logger.WithError(err).Error("could not decrypt " + card.Title); continue }
+		if err != nil {
+			logger.WithError(err).Error("could not decrypt " + card.Title)
+			continue
+		}
 
 		logger.Printf(
-			"> title: %s" +
-				"  login: %s" +
-				"  cat. : %s" +
+			"> title: %s"+
+				"  login: %s"+
+				"  cat. : %s"+
 				"  pass : %s",
 			card.Title,
 			card.Subtitle,
@@ -129,7 +136,7 @@ func main() {
 	if err := vault.Initialize(*vaultPath, *keyFilePath, masterPassword); err != nil {
 		logger.WithError(err).Fatal("could not open vault")
 	}
-	defer func(){ _ = vault.Close() }()
+	defer func() { _ = vault.Close() }()
 	vault.Logger.SetLevel(logLevel)
 
 	logger.Debug("initialized vault")
