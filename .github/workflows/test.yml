@@ -1,0 +1,26 @@
+name: test
+on: pull_request
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      -
+        uses: actions/checkout@v2
+      -
+        id: vars
+        run: |
+          echo ::set-output name=go_version::$(grep '^FROM go' .github/go/Dockerfile | cut -d ' ' -f 2 | cut -d ':' -f 2)
+          echo "Using Go version ${{ steps.vars.outputs.go_version }}"
+      -
+        name: Setup go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ steps.vars.outputs.go_version }}
+      -
+        name: Download Go modules
+        run: go mod download
+      -
+        name: Run Go Tests
+        run: go test -v $(go list ./... | grep -v /vendor/)

@@ -1,0 +1,201 @@
+package enpass
+
+import (
+	"database/sql"
+	"encoding/hex"
+	"fmt"
+	_ "github.com/mutecomm/go-sqlcipher"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+const (
+	// filename of the sqlite vault file
+	vaultFileName = "vault.enpassdb"
+	// contains info about your vault
+	vaultInfoFileName = "vault.json"
+)
+
+type Vault struct {
+	// Logger : the logger instance
+	Logger logrus.Logger
+
+	// vault.enpassdb : SQLCipher database
+	databaseFilename string
+
+	// vault.json
+	vaultInfoFilename string
+
+	// <uuid>.enpassattach : SQLCipher database files for attachments >1KB
+	//attachments []string
+
+	// pointer to our opened database
+	db *sql.DB
+
+	// vault.json : contains info about your vault for synchronizing
+	vaultInfo VaultInfo
+}
+
+func (v *Vault) openEncryptedDatabase(path string, dbKey []byte) (err error) {
+	// The raw key for the sqlcipher database is given
+	// by the first 64 characters of the hex-encoded key
+	dbName := fmt.Sprintf(
+		"%s?_pragma_key=x'%s'&_pragma_cipher_compatibility=3",
+		path,
+		hex.EncodeToString(dbKey)[:masterKeyLength],
+	)
+
+	v.db, err = sql.Open("sqlite3", dbName)
+	if err != nil {
+		return errors.Wrap(err, "could not open database")
+	}
+
+	return nil
+}
+
+func (v *Vault) checkPaths() error {
+	if _, err := os.Stat(v.databaseFilename); os.IsNotExist(err) {
+		return errors.New("vault does not exist: " + v.databaseFilename)
+	}
+
+	if _, err := os.Stat(v.vaultInfoFilename); os.IsNotExist(err) {
+		return errors.New("vault info file does not exist: " + v.vaultInfoFilename)
+	}
+
+	return nil
+}
+
+func (v *Vault) Initialize(databasePath string, keyfilePath string, password string) error {
+	if databasePath == "" {
+		return errors.New("empty v path provided")
+	}
+
+	if password == "" {
+		return errors.New("empty v password provided")
+	}
+
+	v.databaseFilename = filepath.Join(databasePath, vaultFileName)
+	v.vaultInfoFilename = filepath.Join(databasePath, vaultInfoFileName)
+
+	v.Logger.Debug("checking provided v paths")
+	if err := v.checkPaths(); err != nil {
+		return errors.Wrap(err, "invalid v path provided")
+	}
+
+	v.Logger.Debug("loading vault info")
+	var err error
+	v.vaultInfo, err = v.loadVaultInfo()
+	if err != nil {
+		return errors.Wrap(err, "could not load vault info")
+	}
+
+	v.Logger.
+		WithField("db_path", vaultFileName).
+		WithField("info_path", vaultInfoFileName).
+		Debug("initialized paths")
+
+	if keyfilePath == "" && v.vaultInfo.HasKeyfile == 1 {
+		return errors.New("you should specify a keyfile")
+	}
+
+	if keyfilePath != "" && v.vaultInfo.HasKeyfile == 0 {
+		return errors.New("you are specifying an unnecessary keyfile")
+	}
+
+	v.Logger.Debug("generating master password")
+	masterPassword, err := v.generateMasterPassword([]byte(password), keyfilePath)
+	if err != nil {
+		return errors.Wrap(err, "could not generate v unlock key")
+	}
+
+	v.Logger.Debug("extracting salt from database")
+	keySalt, err := v.extractSalt()
+	if err != nil {
+		return errors.Wrap(err, "could not get master password salt")
+	}
+
+	v.Logger.Debug("deriving decryption key")
+	fullKey, err := v.deriveKey(masterPassword, keySalt)
+	if err != nil {
+		return errors.Wrap(err, "could not derive master key from master password")
+	}
+
+	v.Logger.Debug("opening encrypted database")
+	if err := v.openEncryptedDatabase(v.databaseFilename, fullKey); err != nil {
+		return errors.Wrap(err, "could not open v")
+	}
+
+	return nil
+}
+
+func (v *Vault) Close() error {
+	return v.db.Close()
+}
+
+func (v *Vault) GetEntries(cardType string, filters []string) ([]Card, error) {
+	if v.db == nil || v.vaultInfo.VaultName == "" {
+		return nil, errors.New("vault is not initialized")
+	}
+
+	for _, filter := range filters { filter = strings.ToLower(filter) }
+
+	rows, err := v.db.Query(`
+		SELECT uuid, type, created_at, field_updated_at, title,
+		       subtitle, note, category, label, value,
+		       key, last_used
+		FROM item
+		INNER JOIN itemfield ON uuid = item_uuid
+	`)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "could not retrieve cards from database")
+	}
+
+	var cards []Card
+
+	for rows.Next() {
+		var card Card
+
+		// read the database columns into Card object
+		if err := rows.Scan(
+			&card.UUID, &card.Type, &card.CreatedAt, &card.UpdatedAt, &card.Title,
+			&card.Subtitle, &card.Note, &card.Category, &card.Label, &card.value,
+			&card.itemKey, &card.LastUsed,
+		); err != nil {
+			return nil, errors.Wrap(err, "could not read card from database")
+		}
+
+		// if item has been deleted
+		if card.IsDeleted() {
+			continue
+		}
+
+		// if we specify a type filter
+		if cardType != "" && card.Type != cardType {
+			continue
+		}
+
+		// check any supplied title filters
+		if len(filters) > 0 {
+			found := false
+
+			for _, filter := range filters {
+				if strings.Contains(strings.ToLower(card.Title), filter) {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				continue
+			}
+		}
+
+		cards = append(cards, card)
+	}
+
+	return cards, nil
+}
