@@ -129,7 +129,7 @@ func (v *Vault) Initialize(databasePath string, keyfilePath string, password str
 
 	v.Logger.Debug("opening encrypted database")
 	if err := v.openEncryptedDatabase(v.databaseFilename, fullKey); err != nil {
-		return errors.Wrap(err, "could not open v")
+		return errors.Wrap(err, "could not open encrypted database")
 	}
 
 	return nil
