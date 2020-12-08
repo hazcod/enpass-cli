@@ -32,20 +32,12 @@ jobs:
           git config user.email "${{ github.actor }}@users.noreply.github.com"
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
       -
-        name: Update major tag
+        name: Update tags
         if: steps.semantic.outputs.version != ''
         run: |
-          TAG=v${{ steps.semantic.outputs.version_major }}
+          TAG=v${{ steps.semantic.outputs.version }}
           git push origin :refs/tags/${TAG}
-          git tag -fa ${TAG} -m "Release v${{ steps.semantic.outputs.version }}"
-          git push origin ${TAG}
-      -
-        name: Update minor tag
-        if: steps.semantic.outputs.version != ''
-        run: |
-          TAG=v${{ steps.semantic.outputs.version_major }}.${{ steps.semantic.outputs.version_minor }}
-          git push origin :refs/tags/${TAG}
-          git tag -fa ${TAG} -m "Release v${{ steps.semantic.outputs.version }}"
+          git tag -fa ${TAG} -m "release v${{ steps.semantic.outputs.version }}"
           git push origin ${TAG}
       -
         name: Set up Go
