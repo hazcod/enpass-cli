@@ -1,0 +1,35 @@
+before:
+  hooks:
+    - go mod download
+
+changelog:
+  skip: false
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - typo
+      - (?i)foo
+      - '^chore:'
+
+builds:
+-
+  id: enpasscli
+  binary: enpasscli
+  env:
+  - CGO_ENABLED=0
+  ldflags:
+  - -w -s -extldflags "-static -linkmode=external" -X main.version={{.Version}}
+  main: ./cmd/enpasscli/main.go
+  goos:
+  - darwin
+  - linux
+  - windows
+  - freebsd
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  name_template: "{{ .Tag }}-next"
+
