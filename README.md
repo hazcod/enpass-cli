@@ -3,6 +3,10 @@ enpass-cli
 
 A commandline utility for the Enpass password manager.
 
+Installation
+-----
+Go get yourself a compiled binary from [the releases page](https://github.com/hazcod/enpass-cli/releases).
+
 CLI Usage
 -----
 ```shell
