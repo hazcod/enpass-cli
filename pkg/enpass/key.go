@@ -25,7 +25,7 @@ func (v *Vault) generateMasterPassword(password []byte, keyfilePath string) ([]b
 	if keyfilePath == "" {
 		v.Logger.Debug("not using keyfile")
 
-		if password == nil || len(password) == 0 {
+		if password == nil {
 			return nil, errors.New("empty master password provided")
 		}
 
@@ -48,7 +48,7 @@ func (v *Vault) extractSalt() ([]byte, error) {
 	if err != nil {
 		return []byte{}, errors.Wrap(err, "could not open database")
 	}
-	defer func(){ _ = f.Close() }()
+	defer func() { _ = f.Close() }()
 
 	bytesSalt, err := bufio.NewReader(f).Peek(saltLength)
 	if err != nil {

@@ -4,12 +4,14 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
-	_ "github.com/mutecomm/go-sqlcipher"
-	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"os"
 	"path/filepath"
 	"strings"
+
+	// sqlcipher is necessary for sqlite crypto support
+	_ "github.com/mutecomm/go-sqlcipher"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -19,6 +21,7 @@ const (
 	vaultInfoFileName = "vault.json"
 )
 
+// Vault : vault is the container object for vault-related operations
 type Vault struct {
 	// Logger : the logger instance
 	Logger logrus.Logger
@@ -68,6 +71,7 @@ func (v *Vault) checkPaths() error {
 	return nil
 }
 
+// Initialize : setup a connection to the Enpass database. Call this before doing anything.
 func (v *Vault) Initialize(databasePath string, keyfilePath string, password string) error {
 	if databasePath == "" {
 		return errors.New("empty v path provided")
@@ -131,16 +135,16 @@ func (v *Vault) Initialize(databasePath string, keyfilePath string, password str
 	return nil
 }
 
+// Close : close the connection to the underlying database. Always call this in the end.
 func (v *Vault) Close() error {
 	return v.db.Close()
 }
 
+// GetEntries : return the password entries in the Enpass database.
 func (v *Vault) GetEntries(cardType string, filters []string) ([]Card, error) {
 	if v.db == nil || v.vaultInfo.VaultName == "" {
 		return nil, errors.New("vault is not initialized")
 	}
-
-	for _, filter := range filters { filter = strings.ToLower(filter) }
 
 	rows, err := v.db.Query(`
 		SELECT uuid, type, created_at, field_updated_at, title,
@@ -183,7 +187,7 @@ func (v *Vault) GetEntries(cardType string, filters []string) ([]Card, error) {
 			found := false
 
 			for _, filter := range filters {
-				if strings.Contains(strings.ToLower(card.Title), filter) {
+				if strings.Contains(strings.ToLower(card.Title), strings.ToLower(filter)) {
 					found = true
 					break
 				}
