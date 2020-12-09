@@ -148,8 +148,8 @@ func (v *Vault) GetEntries(cardType string, filters []string) ([]Card, error) {
 
 	rows, err := v.db.Query(`
 		SELECT uuid, type, created_at, field_updated_at, title,
-		       subtitle, note, item.deleted, category, label, value,
-		       key, last_used
+		       subtitle, note, trashed, item.deleted, category,
+		       label, value, key, last_used
 		FROM item
 		INNER JOIN itemfield ON uuid = item_uuid
 	`)
@@ -166,8 +166,8 @@ func (v *Vault) GetEntries(cardType string, filters []string) ([]Card, error) {
 		// read the database columns into Card object
 		if err := rows.Scan(
 			&card.UUID, &card.Type, &card.CreatedAt, &card.UpdatedAt, &card.Title,
-			&card.Subtitle, &card.Note, &card.Deleted, &card.Category, &card.Label, &card.value,
-			&card.itemKey, &card.LastUsed,
+			&card.Subtitle, &card.Note, &card.Trashed, &card.Deleted, &card.Category,
+			&card.Label, &card.value, &card.itemKey, &card.LastUsed,
 		); err != nil {
 			return nil, errors.Wrap(err, "could not read card from database")
 		}

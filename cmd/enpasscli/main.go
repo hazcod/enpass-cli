@@ -34,7 +34,7 @@ func sortEntries(cards []enpass.Card) {
 	})
 }
 
-func listEntries(logger *logrus.Logger, vault *enpass.Vault, cardType string, sort bool, filters []string) {
+func listEntries(logger *logrus.Logger, vault *enpass.Vault, cardType string, sort bool, trashed bool, filters []string) {
 	cards, err := vault.GetEntries(cardType, filters)
 	if err != nil {
 		logger.WithError(err).Fatal("could not retrieve cards")
@@ -43,6 +43,9 @@ func listEntries(logger *logrus.Logger, vault *enpass.Vault, cardType string, so
 		sortEntries(cards)
 	}
 	for _, card := range cards {
+		if card.IsTrashed() && !trashed {
+			continue
+		}
 		logger.Printf(
 			"> title: %s"+
 				"  login: %s"+
@@ -54,7 +57,7 @@ func listEntries(logger *logrus.Logger, vault *enpass.Vault, cardType string, so
 	}
 }
 
-func showEntries(logger *logrus.Logger, vault *enpass.Vault, cardType string, sort bool, filters []string) {
+func showEntries(logger *logrus.Logger, vault *enpass.Vault, cardType string, sort bool, trashed bool, filters []string) {
 	cards, err := vault.GetEntries(cardType, filters)
 	if err != nil {
 		logger.WithError(err).Fatal("could not retrieve cards")
@@ -63,6 +66,9 @@ func showEntries(logger *logrus.Logger, vault *enpass.Vault, cardType string, so
 		sortEntries(cards)
 	}
 	for _, card := range cards {
+		if card.IsTrashed() && !trashed {
+			continue
+		}
 		password, err := card.Decrypt()
 		if err != nil {
 			logger.WithError(err).Error("could not decrypt " + card.Title)
@@ -112,6 +118,7 @@ func main() {
 	keyFilePath := flag.String("keyfile", "", "Path to your Enpass vault keyfile.")
 	logLevelStr := flag.String("log", defaultLogLevel.String(), "The log level from debug (5) to error (1).")
 	sort := flag.Bool("sort", false, "Sort the output by title and username.")
+	trashed := flag.Bool("trashed", false, "Show trashed items in output.")
 	flag.Parse()
 
 	if flag.NArg() == 0 {
@@ -162,11 +169,11 @@ func main() {
 
 	switch strings.ToLower(command) {
 	case "list":
-		listEntries(logger, &vault, *cardType, *sort, filters)
+		listEntries(logger, &vault, *cardType, *sort, *trashed, filters)
 		return
 
 	case "show":
-		showEntries(logger, &vault, *cardType, *sort, filters)
+		showEntries(logger, &vault, *cardType, *sort, *trashed, filters)
 		return
 
 	case "copy":
