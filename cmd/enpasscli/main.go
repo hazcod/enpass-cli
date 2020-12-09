@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	s "sort"
 	"strings"
 )
 
@@ -22,12 +23,29 @@ var (
 	version = "dev"
 )
 
-func listEntries(logger *logrus.Logger, vault *enpass.Vault, cardType string, filters []string) {
+func sortEntries(cards []enpass.Card) {
+	// Sort by username preserving original order
+	s.SliceStable(cards, func(i, j int) bool {
+		return strings.ToLower(cards[i].Subtitle) < strings.ToLower(cards[j].Subtitle)
+	})
+	// Sort by title, preserving username order
+	s.SliceStable(cards, func(i, j int) bool {
+		return strings.ToLower(cards[i].Title) < strings.ToLower(cards[j].Title)
+	})
+}
+
+func listEntries(logger *logrus.Logger, vault *enpass.Vault, cardType string, sort bool, trashed bool, filters []string) {
 	cards, err := vault.GetEntries(cardType, filters)
 	if err != nil {
 		logger.WithError(err).Fatal("could not retrieve cards")
 	}
+	if sort {
+		sortEntries(cards)
+	}
 	for _, card := range cards {
+		if card.IsTrashed() && !trashed {
+			continue
+		}
 		logger.Printf(
 			"> title: %s"+
 				"  login: %s"+
@@ -39,12 +57,18 @@ func listEntries(logger *logrus.Logger, vault *enpass.Vault, cardType string, fi
 	}
 }
 
-func showEntries(logger *logrus.Logger, vault *enpass.Vault, cardType string, filters []string) {
+func showEntries(logger *logrus.Logger, vault *enpass.Vault, cardType string, sort bool, trashed bool, filters []string) {
 	cards, err := vault.GetEntries(cardType, filters)
 	if err != nil {
 		logger.WithError(err).Fatal("could not retrieve cards")
 	}
+	if sort {
+		sortEntries(cards)
+	}
 	for _, card := range cards {
+		if card.IsTrashed() && !trashed {
+			continue
+		}
 		password, err := card.Decrypt()
 		if err != nil {
 			logger.WithError(err).Error("could not decrypt " + card.Title)
@@ -93,6 +117,8 @@ func main() {
 	cardType := flag.String("type", "password", "The type of your card. (password, ...)")
 	keyFilePath := flag.String("keyfile", "", "Path to your Enpass vault keyfile.")
 	logLevelStr := flag.String("log", defaultLogLevel.String(), "The log level from debug (5) to error (1).")
+	sort := flag.Bool("sort", false, "Sort the output by title and username.")
+	trashed := flag.Bool("trashed", false, "Show trashed items in output.")
 	flag.Parse()
 
 	if flag.NArg() == 0 {
@@ -143,11 +169,11 @@ func main() {
 
 	switch strings.ToLower(command) {
 	case "list":
-		listEntries(logger, &vault, *cardType, filters)
+		listEntries(logger, &vault, *cardType, *sort, *trashed, filters)
 		return
 
 	case "show":
-		showEntries(logger, &vault, *cardType, filters)
+		showEntries(logger, &vault, *cardType, *sort, *trashed, filters)
 		return
 
 	case "copy":

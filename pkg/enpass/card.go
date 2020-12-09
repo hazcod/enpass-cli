@@ -66,6 +66,7 @@ type Card struct {
 	Title     string
 	Subtitle  string
 	Note      string
+	Trashed   int64
 	Deleted   int64
 	Category  string
 	Label     string
@@ -74,6 +75,10 @@ type Card struct {
 	// encrypted
 	value   string
 	itemKey []byte
+}
+
+func (c *Card) IsTrashed() bool {
+	return c.Trashed != 0
 }
 
 func (c *Card) IsDeleted() bool {
