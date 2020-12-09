@@ -11,7 +11,7 @@ CLI Usage
 -----
 ```shell
 $ # set an alias to easily reuse
-$ alias enp="enpasscli -vault=/my-vault-dir/"
+$ alias enp="enpasscli -vault=/my-vault-dir/ -sort"
 
 $ # show passwords of 'enpass.com'
 $ enp show enpass.com
