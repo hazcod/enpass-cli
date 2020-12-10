@@ -40,8 +40,15 @@ jobs:
           git tag -fa ${TAG} -m "release v${{ steps.semantic.outputs.version }}"
           git push origin ${TAG}
       -
-        name: Set up Go
-        uses: actions/setup-go@v2.1.3
+        id: vars
+        run: |
+          echo ::set-output name=go_version::$(grep '^FROM go' .github/go/Dockerfile | cut -d ' ' -f 2 | cut -d ':' -f 2)
+          echo "Using Go version ${{ steps.vars.outputs.go_version }}"
+      -
+        name: Setup go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ steps.vars.outputs.go_version }}
       -
         name: Release
         uses: goreleaser/goreleaser-action@v2.4.1
