@@ -50,6 +50,8 @@ jobs:
         with:
           go-version: ${{ steps.vars.outputs.go_version }}
       -
+        run: sudo apt-get install gcc-multilib g++-multilib
+      -
         name: Release
         uses: goreleaser/goreleaser-action@v2.4.1
         with:
