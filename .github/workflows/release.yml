@@ -50,6 +50,7 @@ jobs:
         with:
           go-version: ${{ steps.vars.outputs.go_version }}
       -
+        name: install gcc
         run: sudo apt-get install gcc-multilib g++-multilib
       -
         name: Release
