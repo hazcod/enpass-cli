@@ -40,22 +40,17 @@ jobs:
           git tag -fa ${TAG} -m "release v${{ steps.semantic.outputs.version }}"
           git push origin ${TAG}
       -
-        id: vars
-        run: |
-          echo ::set-output name=go_version::$(grep '^FROM go' .github/go/Dockerfile | cut -d ' ' -f 2 | cut -d ':' -f 2)
-          echo "Using Go version ${{ steps.vars.outputs.go_version }}"
-      -
-        name: Setup go
-        uses: actions/setup-go@v2
-        with:
-          go-version: ${{ steps.vars.outputs.go_version }}
-      -
-        name: install gcc
-        run: sudo apt-get install gcc-multilib g++-multilib
-      -
         name: Release
-        uses: goreleaser/goreleaser-action@v2.4.1
-        with:
-          args: release --config=.github/goreleaser.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          docker run --rm --privileged \
+            -v $PWD:/go/src/github.com/hazcod/enpasscli \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -w /go/src/github.com/hazcod/enpasscli \
+            -e GITHUB_TOKEN \
+            -e DOCKER_USERNAME \
+            -e DOCKER_PASSWORD \
+            -e DOCKER_REGISTRY \
+            goreleaser/goreleaser release \
+              --config=/go/src/github.com/hazcod/enpasscli/.github/goreleaser.yml
