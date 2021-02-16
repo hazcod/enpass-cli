@@ -17,9 +17,8 @@ builds:
   id: enpasscli
   binary: enpasscli
   env:
-  - CGO_ENABLED=1
-  ldflags:
-  - -w -s -extldflags "-static -linkmode=external" -X main.version={{.Version}}
+  - CGO_ENABLED=0
+  - -w -s -trimpath -ldflags "-linkmode external -extldflags -static" -X main.version={{.Version}}
   main: ./cmd/enpasscli/main.go
   goos:
   - darwin
