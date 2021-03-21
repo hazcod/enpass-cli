@@ -63,7 +63,7 @@ changelog:
 
 release:
   github:
-    owner: Kwbmm
+    owner: hazcod
     name: enpass-cli
   prerelease: auto
   draft: false
