@@ -17,6 +17,17 @@ jobs:
         uses: actions/setup-go@v2
       - name: release dry run
         run: make release-dry-run
+      - uses: go-semantic-release/action@v1
+        id: semantic
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Update tags
+        if: steps.semantic.outputs.version != ''
+        run: |
+          TAG=v${{ steps.semantic.outputs.version }}
+          git push origin :refs/tags/${TAG}
+          git tag -fa ${TAG} -m "release v${{ steps.semantic.outputs.version }}"
+          git push origin ${TAG}
       - name: setup release environment
         run: |-
           echo 'GITHUB_TOKEN=${{secrets.GITHUB_TOKEN}}' > .release-env
