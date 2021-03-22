@@ -119,6 +119,7 @@ func main() {
 	logLevelStr := flag.String("log", defaultLogLevel.String(), "The log level from debug (5) to error (1).")
 	sort := flag.Bool("sort", false, "Sort the output by title and username.")
 	trashed := flag.Bool("trashed", false, "Show trashed items in output.")
+	
 	flag.Parse()
 
 	if flag.NArg() == 0 {
