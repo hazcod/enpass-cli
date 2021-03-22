@@ -5,25 +5,23 @@ on:
     branches: [master]
 
 jobs:
-
   goreleaser:
     name: Release
     runs-on: ubuntu-latest
     steps:
-      -
-        name: Checkout
+      - name: Checkout
         uses: actions/checkout@v2
         with:
           fetch-depth: 0
-      -
-        uses: go-semantic-release/action@v1
+      - name: setup dependencies
+        uses: actions/setup-go@v2
+      - name: release dry run
+        run: make release-dry-run
+      - uses: go-semantic-release/action@v1
         id: semantic
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      -
-        run: git clean -fdx
-      -
-        name: Set up Git
+      - name: Set up Git config for tagging
         if: steps.semantic.outputs.version != ''
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -31,26 +29,15 @@ jobs:
           git config user.name "${{ github.actor }}"
           git config user.email "${{ github.actor }}@users.noreply.github.com"
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-      -
-        name: Update tags
+      - name: Update tags
         if: steps.semantic.outputs.version != ''
         run: |
           TAG=v${{ steps.semantic.outputs.version }}
           git push origin :refs/tags/${TAG}
           git tag -fa ${TAG} -m "release v${{ steps.semantic.outputs.version }}"
           git push origin ${TAG}
-      -
-        name: Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          docker run --rm --privileged \
-            -v $PWD:/go/src/github.com/hazcod/enpasscli \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            -w /go/src/github.com/hazcod/enpasscli \
-            -e GITHUB_TOKEN \
-            -e DOCKER_USERNAME \
-            -e DOCKER_PASSWORD \
-            -e DOCKER_REGISTRY \
-            goreleaser/goreleaser release \
-              --config=/go/src/github.com/hazcod/enpasscli/.github/goreleaser.yml
+      - name: setup release environment
+        run: |-
+          echo 'GITHUB_TOKEN=${{secrets.GITHUB_TOKEN}}' > .release-env
+      - name: release publish
+        run: make release

@@ -1,0 +1,69 @@
+before:
+  hooks:
+  - go mod download
+
+builds:
+  - id: linux64
+    main: ./cmd/enpasscli/main.go
+    binary: enpasscli
+    goos:
+      - linux
+    goarch:
+      - amd64
+    env:
+      - CC=gcc
+      - CXX=g++
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+  - id: darwin64
+    main: ./cmd/enpasscli/main.go
+    binary: enpasscli
+    goos:
+      - darwin
+    goarch:
+      - amd64
+    env:
+      - CC=o64-clang
+      - CXX=o64-clang++
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+  - id: linux-armhf
+    main: ./cmd/enpasscli/main.go
+    binary: enpasscli
+    goos:
+      - linux
+    goarch:
+      - arm
+    goarm:
+      - 7
+    env:
+      - CC=arm-linux-gnueabihf-gcc
+      - CXX=arm-linux-gnueabihf-g++
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+archives:
+  - id: enpass-cli
+    builds:
+      - darwin64
+      - linux64
+      - linux-armhf
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format: zip
+    wrap_in_directory: true
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  name_template: "{{ .Tag }}"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+
+release:
+  github:
+    owner: hazcod
+    name: enpass-cli
+  prerelease: auto
+  draft: false

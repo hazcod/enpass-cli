@@ -1,1 +1,7 @@
 .idea/
+*.tar.xz
+dist
+vendor
+.release-env
+.semrel/
+.generated-go-semantic-release-changelog.md
