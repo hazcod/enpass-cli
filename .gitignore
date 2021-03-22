@@ -3,3 +3,4 @@
 dist
 vendor
 .release-env
+.semrel/
