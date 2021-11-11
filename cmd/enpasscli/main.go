@@ -161,7 +161,8 @@ func main() {
 	vault.Logger.SetLevel(logger.Level)
 
 	if err := vault.Initialize(*vaultPath, *keyFilePath, masterPassword); err != nil {
-		logger.WithError(err).Fatal("could not open vault")
+		logger.WithError(err).Error("could not open vault")
+		os.Exit(2)
 	}
 	defer func() { _ = vault.Close() }()
 	vault.Logger.SetLevel(logLevel)
