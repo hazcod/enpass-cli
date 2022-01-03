@@ -43,6 +43,7 @@ type Vault struct {
 }
 
 func (v *Vault) openEncryptedDatabase(path string, dbKey []byte) (err error) {
+
 	// The raw key for the sqlcipher database is given
 	// by the first 64 characters of the hex-encoded key
 	dbName := fmt.Sprintf(
@@ -54,6 +55,16 @@ func (v *Vault) openEncryptedDatabase(path string, dbKey []byte) (err error) {
 	v.db, err = sql.Open("sqlite3", dbName)
 	if err != nil {
 		return errors.Wrap(err, "could not open database")
+	}
+
+	var tableName string
+	err = v.db.QueryRow(`
+		SELECT name
+		FROM sqlite_master
+		WHERE type='table' AND name='item'
+	`).Scan(&tableName)
+	if err != nil || tableName == "item" {
+		return errors.Wrap(err, "could not connect to database")
 	}
 
 	return nil
