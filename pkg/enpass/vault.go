@@ -138,8 +138,10 @@ func (v *Vault) Initialize(databasePath string, keyfilePath string, password str
 		FROM sqlite_master
 		WHERE type='table' AND name='item'
 	`).Scan(&tableName)
-	if err != nil || tableName != "item" {
+	if err != nil {
 		return errors.Wrap(err, "could not connect to database")
+	} else if tableName != "item" {
+		return errors.New("could not connect to database")
 	}
 
 	return nil
