@@ -43,7 +43,6 @@ type Vault struct {
 }
 
 func (v *Vault) openEncryptedDatabase(path string, dbKey []byte) (err error) {
-
 	// The raw key for the sqlcipher database is given
 	// by the first 64 characters of the hex-encoded key
 	dbName := fmt.Sprintf(
