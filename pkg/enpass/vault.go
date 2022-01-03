@@ -132,6 +132,18 @@ func (v *Vault) Initialize(databasePath string, keyfilePath string, password str
 		return errors.Wrap(err, "could not open encrypted database")
 	}
 
+	var tableName string
+	err = v.db.QueryRow(`
+		SELECT name
+		FROM sqlite_master
+		WHERE type='table' AND name='item'
+	`).Scan(&tableName)
+	if err != nil {
+		return errors.Wrap(err, "could not connect to database")
+	} else if tableName != "item" {
+		return errors.New("could not connect to database")
+	}
+
 	return nil
 }
 
