@@ -5,7 +5,7 @@ var (
 	Primary bool
 )
 
-// write : writes to the clipboard
+// WriteAll : writes to the clipboard
 func WriteAll(text string) (error) {
 	return writeAll(text)
 }
