@@ -119,7 +119,8 @@ func main() {
 	logLevelStr := flag.String("log", defaultLogLevel.String(), "The log level from debug (5) to error (1).")
 	sort := flag.Bool("sort", false, "Sort the output by title and username.")
 	trashed := flag.Bool("trashed", false, "Show trashed items in output.")
-	
+	clipboardPrimary := flag.Bool("clipboardPrimary", false, "Use primary X selection instead of clipboard.")
+
 	flag.Parse()
 
 	if flag.NArg() == 0 {
@@ -137,6 +138,11 @@ func main() {
 
 	command := strings.ToLower(flag.Arg(0))
 	filters := flag.Args()[1:]
+
+	if *clipboardPrimary {
+		clipboard.Primary = true
+		logger.Debug("primary X selection enabled")
+	}
 
 	if command == "version" {
 		logger.Printf(
