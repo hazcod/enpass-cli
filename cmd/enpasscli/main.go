@@ -139,6 +139,11 @@ func main() {
 	command := strings.ToLower(flag.Arg(0))
 	filters := flag.Args()[1:]
 
+	if *clipboardPrimary {
+		clipboard.Primary = true
+		logger.Debug("primary X selection enabled")
+	}
+
 	if command == "version" {
 		logger.Printf(
 			"%s arch=%s os=%s version=%s",
@@ -180,7 +185,6 @@ func main() {
 		return
 
 	case "copy":
-		clipboard.Primary = *clipboardPrimary
 		copyEntry(logger, &vault, *cardType, filters)
 		return
 	}
