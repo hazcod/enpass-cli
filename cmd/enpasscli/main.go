@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/atotto/clipboard"
 	"github.com/hazcod/enpass-cli/pkg/enpass"
+	"github.com/hazcod/enpass-cli/pkg/pin"
 	"github.com/miquella/ask"
 	"github.com/sirupsen/logrus"
 	"os"
@@ -120,6 +121,7 @@ func main() {
 	sort := flag.Bool("sort", false, "Sort the output by title and username.")
 	trashed := flag.Bool("trashed", false, "Show trashed items in output.")
 	clipboardPrimary := flag.Bool("clipboardPrimary", false, "Use primary X selection instead of clipboard.")
+	pinEnabled := flag.Bool("pin", false, "Enable PIN.")
 
 	flag.Parse()
 
@@ -138,7 +140,7 @@ func main() {
 
 	command := strings.ToLower(flag.Arg(0))
 	filters := flag.Args()[1:]
-
+  
 	if *clipboardPrimary {
 		clipboard.Primary = true
 		logger.Debug("primary X selection enabled")
@@ -151,8 +153,30 @@ func main() {
 		)
 		return
 	}
+  
+  var mpwStore *pin.MpwStore
+  if *pinEnabled {
+    storePin := os.Getenv("PIN")
+    if storePin == "" {
+      if storePin, err = ask.HiddenAsk("Enter PIN: "); err != nil {
+        logger.WithError(err).Fatal("could not prompt for PIN")
+      }
+    }
+    if storePin != "" {
+      mpwStore = new(pin.MpwStore)
+      mpwStore.Initialize(storePin)
+    }
+  } else {
+    logger.Debug("PIN disabled")
+  }
 
-	masterPassword := os.Getenv("MASTERPW")
+  
+  masterPassword := os.Getenv("MASTERPW")  
+	if masterPassword == "" && mpwStore != nil {
+    if masterPassword, err = mpwStore.Read(); err != nil {
+      logger.WithError(err).Debug("could not read store")
+    }
+  }
 	if masterPassword == "" {
 		if masterPassword, err = ask.HiddenAsk("Enter master password: "); err != nil {
 			logger.WithError(err).Fatal("could not prompt for master password")
@@ -175,18 +199,23 @@ func main() {
 
 	logger.Debug("initialized vault")
 
-	switch strings.ToLower(command) {
+	switch command {
 	case "list":
 		listEntries(logger, &vault, *cardType, *sort, *trashed, filters)
-		return
-
 	case "show":
 		showEntries(logger, &vault, *cardType, *sort, *trashed, filters)
-		return
-
 	case "copy":
 		copyEntry(logger, &vault, *cardType, filters)
-		return
+  default:
+    logger.WithField("command", command).Fatal("unknown command")
 	}
+  
+  if mpwStore != nil && !mpwStore.WasReadSuccessfully {
+    if err := mpwStore.Write(masterPassword); err != nil {
+      logger.WithError(err).Fatal("failed to write mpw")
+    }
+  }
+  
+  return
 
 }
