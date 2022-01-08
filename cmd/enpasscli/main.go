@@ -155,9 +155,6 @@ func main() {
 		return
 	}
 
-	vault := enpass.Vault{Logger: *logrus.New()}
-	vault.Logger.SetLevel(logger.Level)
-
 	accessData := &enpass.VaultAccessData{}
 	accessData.KeyfilePath = *keyFilePath
 	accessData.Password = os.Getenv("MASTERPW")
@@ -173,12 +170,14 @@ func main() {
 		accessData.Password = prompt(logger, "master password")
 	}
 
-	if err := vault.Initialize(*vaultPath, *accessData); err != nil {
+	vault := enpass.Vault{Logger: *logrus.New()}
+	vault.Logger.SetLevel(logger.Level)
+
+	if err := vault.Initialize(*vaultPath, accessData); err != nil {
 		logger.WithError(err).Error("could not open vault")
 		logger.Exit(2)
 	}
 	defer func() { _ = vault.Close() }()
-	vault.Logger.SetLevel(logLevel)
 
 	logger.Debug("initialized vault")
 

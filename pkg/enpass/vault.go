@@ -69,7 +69,7 @@ func (v *Vault) openEncryptedDatabase(path string, dbKey []byte) (err error) {
 	return nil
 }
 
-func (v *Vault) generateAndSetDBKey(accessData VaultAccessData) error {
+func (v *Vault) generateAndSetDBKey(accessData *VaultAccessData) error {
 	if accessData.DBKey != nil {
 		v.Logger.Debug("skipping database key generation, already set")
 		return nil
@@ -119,7 +119,7 @@ func (v *Vault) checkPaths() error {
 }
 
 // Initialize : setup a connection to the Enpass database. Call this before doing anything.
-func (v *Vault) Initialize(databasePath string, accessData VaultAccessData) error {
+func (v *Vault) Initialize(databasePath string, accessData *VaultAccessData) error {
 	if databasePath == "" {
 		return errors.New("empty v path provided")
 	}
