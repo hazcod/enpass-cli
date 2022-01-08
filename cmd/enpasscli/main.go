@@ -155,9 +155,11 @@ func main() {
 		return
 	}
 
-	accessData := &enpass.VaultAccessData{}
-	accessData.KeyfilePath = *keyFilePath
-	accessData.Password = os.Getenv("MASTERPW")
+	accessData := &enpass.VaultAccessData{
+		VaultPath:   *vaultPath,
+		KeyfilePath: *keyFilePath,
+		Password:    os.Getenv("MASTERPW"),
+	}
 
 	var store *pin.SecureStore
 	if !*pinEnabled {
@@ -173,7 +175,7 @@ func main() {
 	vault := enpass.Vault{Logger: *logrus.New()}
 	vault.Logger.SetLevel(logger.Level)
 
-	if err := vault.Initialize(*vaultPath, accessData); err != nil {
+	if err := vault.Initialize(accessData); err != nil {
 		logger.WithError(err).Error("could not open vault")
 		logger.Exit(2)
 	}
@@ -209,13 +211,12 @@ func initAndReadSecureStore(logger *logrus.Logger, accessData *enpass.VaultAcces
 		storePin = prompt(logger, "PIN")
 	}
 	logger.Debug("initialising secure store")
-	store, err := pin.NewSecureStore(storePin)
+	store, err := pin.NewSecureStore(storePin, accessData.VaultPath)
 	if err != nil {
 		logger.WithError(err).Fatal("could not initialise secure store")
 	}
 	logger.Debug("reading from store")
 	if accessData.DBKey, err = store.Read(); err != nil {
-		// TODO debug ?
 		logger.WithError(err).Fatal("could not read access data from store")
 	}
 	return store

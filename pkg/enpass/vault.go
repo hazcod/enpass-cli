@@ -43,13 +43,15 @@ type Vault struct {
 }
 
 type VaultAccessData struct {
+	VaultPath   string
 	KeyfilePath string
 	Password    string
 	DBKey       []byte
 }
 
 func (accessData *VaultAccessData) IsComplete() bool {
-	return accessData.Password != "" || accessData.DBKey != nil
+	return accessData.VaultPath != "" &&
+		(accessData.Password != "" || accessData.DBKey != nil)
 }
 
 func (v *Vault) openEncryptedDatabase(path string, dbKey []byte) (err error) {
@@ -76,7 +78,7 @@ func (v *Vault) generateAndSetDBKey(accessData *VaultAccessData) error {
 	}
 
 	if accessData.Password == "" {
-		return errors.New("empty v password provided")
+		return errors.New("empty vault password provided")
 	}
 
 	if accessData.KeyfilePath == "" && v.vaultInfo.HasKeyfile == 1 {
@@ -88,7 +90,7 @@ func (v *Vault) generateAndSetDBKey(accessData *VaultAccessData) error {
 	v.Logger.Debug("generating master password")
 	masterPassword, err := v.generateMasterPassword([]byte(accessData.Password), accessData.KeyfilePath)
 	if err != nil {
-		return errors.Wrap(err, "could not generate v unlock key")
+		return errors.Wrap(err, "could not generate vault unlock key")
 	}
 
 	v.Logger.Debug("extracting salt from database")
@@ -119,17 +121,17 @@ func (v *Vault) checkPaths() error {
 }
 
 // Initialize : setup a connection to the Enpass database. Call this before doing anything.
-func (v *Vault) Initialize(databasePath string, accessData *VaultAccessData) error {
-	if databasePath == "" {
-		return errors.New("empty v path provided")
+func (v *Vault) Initialize(accessData *VaultAccessData) error {
+	if accessData.VaultPath == "" {
+		return errors.New("empty vault path provided")
 	}
 
-	v.databaseFilename = filepath.Join(databasePath, vaultFileName)
-	v.vaultInfoFilename = filepath.Join(databasePath, vaultInfoFileName)
+	v.databaseFilename = filepath.Join(accessData.VaultPath, vaultFileName)
+	v.vaultInfoFilename = filepath.Join(accessData.VaultPath, vaultInfoFileName)
 
-	v.Logger.Debug("checking provided v paths")
+	v.Logger.Debug("checking provided vault paths")
 	if err := v.checkPaths(); err != nil {
-		return errors.Wrap(err, "invalid v path provided")
+		return errors.Wrap(err, "invalid vault path provided")
 	}
 
 	v.Logger.Debug("loading vault info")

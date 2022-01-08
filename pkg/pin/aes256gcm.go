@@ -18,15 +18,22 @@ const (
 	minKdfIterCount = 10000
 )
 
-func deriveKey(passphrase string, salt []byte, kdfIterCount int) ([]byte, []byte) {
-	if salt == nil {
-		salt = make([]byte, saltLength)
-		rand.Read(salt) // Salt http://www.ietf.org/rfc/rfc2898.txt
-	}
+func sha256sum(data []byte) []byte {
+	sum := sha256.Sum256(data)
+	return sum[:]
+}
+
+func generateSalt() []byte {
+	salt := make([]byte, saltLength)
+	rand.Read(salt) // Salt http://www.ietf.org/rfc/rfc2898.txt
+	return salt
+}
+
+func deriveKey(passphrase []byte, salt []byte, kdfIterCount int) []byte {
 	if kdfIterCount < minKdfIterCount {
 		kdfIterCount = minKdfIterCount
 	}
-	return pbkdf2.Key([]byte(passphrase), salt, kdfIterCount, sha256.Size, sha256.New), salt
+	return pbkdf2.Key(passphrase, salt, kdfIterCount, sha256.Size, sha256.New)
 }
 
 func createCipherGCM(key []byte) (cipher.AEAD, error) {
@@ -37,8 +44,9 @@ func createCipherGCM(key []byte) (cipher.AEAD, error) {
 	return cipher.NewGCM(b)
 }
 
-func encrypt(passphrase string, plaintext []byte, kdfIterCount int) (string, error) {
-	key, salt := deriveKey(passphrase, nil, kdfIterCount)
+func encrypt(passphrase []byte, plaintext []byte, kdfIterCount int) (string, error) {
+	salt := generateSalt()
+	key := deriveKey(passphrase, salt, kdfIterCount)
 	iv := make([]byte, 12)
 	rand.Read(iv) // Section 8.2 http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
 	aesgcm, err := createCipherGCM(key)
@@ -49,12 +57,12 @@ func encrypt(passphrase string, plaintext []byte, kdfIterCount int) (string, err
 	return hex.EncodeToString(salt) + "-" + hex.EncodeToString(iv) + "-" + hex.EncodeToString(data), nil
 }
 
-func decrypt(passphrase, ciphertext string, kdfIterCount int) ([]byte, error) {
+func decrypt(passphrase []byte, ciphertext string, kdfIterCount int) ([]byte, error) {
 	arr := strings.Split(ciphertext, "-")
 	salt, _ := hex.DecodeString(arr[0])
 	iv, _ := hex.DecodeString(arr[1])
 	data, _ := hex.DecodeString(arr[2])
-	key, _ := deriveKey(passphrase, salt, kdfIterCount)
+	key := deriveKey(passphrase, salt, kdfIterCount)
 	aesgcm, err := createCipherGCM(key)
 	if err != nil {
 		return nil, err
