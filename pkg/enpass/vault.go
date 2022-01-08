@@ -42,6 +42,16 @@ type Vault struct {
 	vaultInfo VaultInfo
 }
 
+type VaultAccessData struct {
+	KeyfilePath string
+	Password    string
+	DBKey       []byte
+}
+
+func (accessData *VaultAccessData) IsComplete() bool {
+	return accessData.Password != "" || accessData.DBKey != nil
+}
+
 func (v *Vault) openEncryptedDatabase(path string, dbKey []byte) (err error) {
 	// The raw key for the sqlcipher database is given
 	// by the first 64 characters of the hex-encoded key
@@ -54,6 +64,43 @@ func (v *Vault) openEncryptedDatabase(path string, dbKey []byte) (err error) {
 	v.db, err = sql.Open("sqlite3", dbName)
 	if err != nil {
 		return errors.Wrap(err, "could not open database")
+	}
+
+	return nil
+}
+
+func (v *Vault) generateAndSetDBKey(accessData VaultAccessData) error {
+	if accessData.DBKey != nil {
+		v.Logger.Debug("skipping database key generation, already set")
+		return nil
+	}
+
+	if accessData.Password == "" {
+		return errors.New("empty v password provided")
+	}
+
+	if accessData.KeyfilePath == "" && v.vaultInfo.HasKeyfile == 1 {
+		return errors.New("you should specify a keyfile")
+	} else if accessData.KeyfilePath != "" && v.vaultInfo.HasKeyfile == 0 {
+		return errors.New("you are specifying an unnecessary keyfile")
+	}
+
+	v.Logger.Debug("generating master password")
+	masterPassword, err := v.generateMasterPassword([]byte(accessData.Password), accessData.KeyfilePath)
+	if err != nil {
+		return errors.Wrap(err, "could not generate v unlock key")
+	}
+
+	v.Logger.Debug("extracting salt from database")
+	keySalt, err := v.extractSalt()
+	if err != nil {
+		return errors.Wrap(err, "could not get master password salt")
+	}
+
+	v.Logger.Debug("deriving decryption key")
+	accessData.DBKey, err = v.deriveKey(masterPassword, keySalt)
+	if err != nil {
+		return errors.Wrap(err, "could not derive database key from master password")
 	}
 
 	return nil
@@ -72,13 +119,9 @@ func (v *Vault) checkPaths() error {
 }
 
 // Initialize : setup a connection to the Enpass database. Call this before doing anything.
-func (v *Vault) Initialize(databasePath string, keyfilePath string, password string) error {
+func (v *Vault) Initialize(databasePath string, accessData VaultAccessData) error {
 	if databasePath == "" {
 		return errors.New("empty v path provided")
-	}
-
-	if password == "" {
-		return errors.New("empty v password provided")
 	}
 
 	v.databaseFilename = filepath.Join(databasePath, vaultFileName)
@@ -101,34 +144,13 @@ func (v *Vault) Initialize(databasePath string, keyfilePath string, password str
 		WithField("info_path", vaultInfoFileName).
 		Debug("initialized paths")
 
-	if keyfilePath == "" && v.vaultInfo.HasKeyfile == 1 {
-		return errors.New("you should specify a keyfile")
-	}
-
-	if keyfilePath != "" && v.vaultInfo.HasKeyfile == 0 {
-		return errors.New("you are specifying an unnecessary keyfile")
-	}
-
-	v.Logger.Debug("generating master password")
-	masterPassword, err := v.generateMasterPassword([]byte(password), keyfilePath)
-	if err != nil {
-		return errors.Wrap(err, "could not generate v unlock key")
-	}
-
-	v.Logger.Debug("extracting salt from database")
-	keySalt, err := v.extractSalt()
-	if err != nil {
-		return errors.Wrap(err, "could not get master password salt")
-	}
-
-	v.Logger.Debug("deriving decryption key")
-	fullKey, err := v.deriveKey(masterPassword, keySalt)
-	if err != nil {
-		return errors.Wrap(err, "could not derive master key from master password")
+	v.Logger.Debug("generating database key")
+	if err := v.generateAndSetDBKey(accessData); err != nil {
+		return errors.Wrap(err, "could not generate database key")
 	}
 
 	v.Logger.Debug("opening encrypted database")
-	if err := v.openEncryptedDatabase(v.databaseFilename, fullKey); err != nil {
+	if err := v.openEncryptedDatabase(v.databaseFilename, accessData.DBKey); err != nil {
 		return errors.Wrap(err, "could not open encrypted database")
 	}
 

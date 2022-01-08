@@ -3,16 +3,17 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/atotto/clipboard"
-	"github.com/hazcod/enpass-cli/pkg/enpass"
-	"github.com/hazcod/enpass-cli/pkg/pin"
-	"github.com/miquella/ask"
-	"github.com/sirupsen/logrus"
 	"os"
 	"path/filepath"
 	"runtime"
 	s "sort"
 	"strings"
+
+	"github.com/atotto/clipboard"
+	"github.com/hazcod/enpass-cli/pkg/enpass"
+	"github.com/hazcod/enpass-cli/pkg/pin"
+	"github.com/miquella/ask"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -140,7 +141,7 @@ func main() {
 
 	command := strings.ToLower(flag.Arg(0))
 	filters := flag.Args()[1:]
-  
+
 	if *clipboardPrimary {
 		clipboard.Primary = true
 		logger.Debug("primary X selection enabled")
@@ -153,46 +154,28 @@ func main() {
 		)
 		return
 	}
-  
-  var mpwStore *pin.MpwStore
-  if *pinEnabled {
-    storePin := os.Getenv("PIN")
-    if storePin == "" {
-      if storePin, err = ask.HiddenAsk("Enter PIN: "); err != nil {
-        logger.WithError(err).Fatal("could not prompt for PIN")
-      }
-    }
-    if storePin != "" {
-      mpwStore = new(pin.MpwStore)
-      mpwStore.Initialize(storePin)
-    }
-  } else {
-    logger.Debug("PIN disabled")
-  }
-
-  
-  masterPassword := os.Getenv("MASTERPW")  
-	if masterPassword == "" && mpwStore != nil {
-    if masterPassword, err = mpwStore.Read(); err != nil {
-      logger.WithError(err).Debug("could not read store")
-    }
-  }
-	if masterPassword == "" {
-		if masterPassword, err = ask.HiddenAsk("Enter master password: "); err != nil {
-			logger.WithError(err).Fatal("could not prompt for master password")
-		}
-	}
-
-	if masterPassword == "" {
-		logger.Fatal("no master password provided. (via cli or MASTERPW env variable)")
-	}
 
 	vault := enpass.Vault{Logger: *logrus.New()}
 	vault.Logger.SetLevel(logger.Level)
 
-	if err := vault.Initialize(*vaultPath, *keyFilePath, masterPassword); err != nil {
+	accessData := &enpass.VaultAccessData{}
+	accessData.KeyfilePath = *keyFilePath
+	accessData.Password = os.Getenv("MASTERPW")
+
+	var store *pin.SecureStore
+	if !*pinEnabled {
+		logger.Debug("PIN disabled")
+	} else if !accessData.IsComplete() {
+		store = initAndReadSecureStore(logger, accessData)
+	}
+
+	if !accessData.IsComplete() {
+		accessData.Password = prompt(logger, "master password")
+	}
+
+	if err := vault.Initialize(*vaultPath, *accessData); err != nil {
 		logger.WithError(err).Error("could not open vault")
-		os.Exit(2)
+		logger.Exit(2)
 	}
 	defer func() { _ = vault.Close() }()
 	vault.Logger.SetLevel(logLevel)
@@ -206,16 +189,44 @@ func main() {
 		showEntries(logger, &vault, *cardType, *sort, *trashed, filters)
 	case "copy":
 		copyEntry(logger, &vault, *cardType, filters)
-  default:
-    logger.WithField("command", command).Fatal("unknown command")
+	default:
+		// TODO check / rm commands ?
+		logger.WithField("command", command).Fatal("unknown command")
 	}
-  
-  if mpwStore != nil && !mpwStore.WasReadSuccessfully {
-    if err := mpwStore.Write(masterPassword); err != nil {
-      logger.WithError(err).Fatal("failed to write mpw")
-    }
-  }
-  
-  return
 
+	if store != nil {
+		if err := store.Write(accessData.DBKey); err != nil {
+			logger.WithError(err).Fatal("failed to write access data to store")
+		}
+	}
+
+	return
+
+}
+
+func initAndReadSecureStore(logger *logrus.Logger, accessData *enpass.VaultAccessData) *pin.SecureStore {
+	storePin := os.Getenv("PIN")
+	if storePin == "" {
+		storePin = prompt(logger, "PIN")
+	}
+	logger.Debug("initialising secure store")
+	store, err := pin.NewSecureStore(storePin)
+	if err != nil {
+		logger.WithError(err).Fatal("could not initialise secure store")
+	}
+	logger.Debug("reading from store")
+	if accessData.DBKey, err = store.Read(); err != nil {
+		// TODO debug ?
+		logger.WithError(err).Fatal("could not read access data from store")
+	}
+	return store
+}
+
+func prompt(logger *logrus.Logger, msg string) string {
+	if response, err := ask.HiddenAsk("Enter " + msg + ": "); err != nil {
+		logger.WithError(err).Fatal("could not prompt for " + msg)
+	} else {
+		return response
+	}
+	return ""
 }
