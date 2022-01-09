@@ -9,7 +9,7 @@ import (
 	s "sort"
 	"strings"
 
-	"github.com/atotto/clipboard"
+	"github.com/hazcod/enpass-cli/pkg/clipboard"
 	"github.com/hazcod/enpass-cli/pkg/enpass"
 	"github.com/miquella/ask"
 	"github.com/sirupsen/logrus"
