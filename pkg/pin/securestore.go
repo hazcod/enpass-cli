@@ -1,9 +1,7 @@
 package pin
 
 import (
-	"bytes"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/pkg/errors"
@@ -26,11 +24,12 @@ func NewSecureStore(pin string, vaultPath string) (*SecureStore, error) {
 	if len(pin) < minPinLength {
 		return nil, errors.New("PIN too short")
 	}
+	vaultPath, _ = filepath.EvalSymlinks(vaultPath)
 	file, err := getOrCreateStoreFile(vaultPath)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not create store file")
 	}
-	if passphrase, err := generatePassphrase(pin, file); err != nil {
+	if passphrase, err := generatePassphrase(pin, vaultPath); err != nil {
 		return nil, err
 	} else {
 		return &SecureStore{
@@ -41,24 +40,27 @@ func NewSecureStore(pin string, vaultPath string) (*SecureStore, error) {
 	}
 }
 
-func getOrCreateStoreFile(vaultPath string) (*os.File, error) {
-	dirPath := os.Getenv("XDG_RUNTIME_DIR")
-	if dirPath == "" {
-		dirPath = os.TempDir()
+func getTempDir() string {
+	tempDir := os.Getenv("TMPDIR")
+	if tempDir == "" {
+		tempDir = os.Getenv("XDG_RUNTIME_DIR")
 	}
-	fileName := fileNamePref + filepath.Base(vaultPath)
-	return os.OpenFile(filepath.Join(dirPath, fileName), os.O_CREATE, fileMode)
+	if tempDir == "" {
+		tempDir = os.TempDir()
+	}
+	return tempDir
 }
 
-// this is more obscurity than security but can make trivial attack vectors more difficult
-func generatePassphrase(pin string, file *os.File) ([]byte, error) {
-	data := []byte(pin)
-	lastboot, err := exec.Command("who", "-b").Output()
-	if err != nil {
-		return nil, errors.Wrap(err, "could not retrieve last boot time")
-	}
-	data = append(data, bytes.TrimSpace(lastboot)...)
-	return sha256sum(data), nil
+func getOrCreateStoreFile(vaultPath string) (*os.File, error) {
+	fileName := fileNamePref + filepath.Base(vaultPath)
+	return os.OpenFile(filepath.Join(getTempDir(), fileName), os.O_CREATE, fileMode)
+}
+
+// this is more obscurity than security but can make brute force less trivial
+func generatePassphrase(pin string, vaultPath string) ([]byte, error) {
+	vaultPath, err := filepath.Abs(vaultPath)
+	data := append([]byte(pin), []byte(vaultPath)...)
+	return sha256sum(data), err
 }
 
 func (store *SecureStore) Read() ([]byte, error) {

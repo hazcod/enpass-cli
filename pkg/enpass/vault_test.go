@@ -17,7 +17,8 @@ func TestVault_Initialize(t *testing.T) {
 	}
 	vault.Logger.SetLevel(logrus.ErrorLevel)
 	defer vault.Close()
-	if err := vault.Initialize(vaultPath, &VaultAccessData{Password: testPassword}); err != nil {
+	accessData := &VaultAccessData{VaultPath: vaultPath, Password: testPassword}
+	if err := vault.Initialize(accessData); err != nil {
 		t.Errorf("vault initialization failed: %+v", err)
 	}
 }
@@ -28,8 +29,8 @@ func TestVault_GetEntries(t *testing.T) {
 	}
 	vault.Logger.SetLevel(logrus.ErrorLevel)
 	defer vault.Close()
-
-	if err := vault.Initialize(vaultPath, &VaultAccessData{Password: testPassword}); err != nil {
+	accessData := &VaultAccessData{VaultPath: vaultPath, Password: testPassword}
+	if err := vault.Initialize(accessData); err != nil {
 		t.Errorf("vault initialization failed: %+v", err)
 	}
 
