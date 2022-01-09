@@ -4,6 +4,6 @@ import (
 	"github.com/atotto/clipboard"
 )
 
-func writeAll(text string) (error) {
+func writeAll(text string) error {
 	return clipboard.WriteAll(text)
 }

@@ -6,6 +6,6 @@ var (
 )
 
 // WriteAll : writes to the clipboard
-func WriteAll(text string) (error) {
+func WriteAll(text string) error {
 	return writeAll(text)
 }
