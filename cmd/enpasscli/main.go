@@ -206,7 +206,4 @@ func main() {
 	default:
 		logger.WithField("command", command).Fatal("unknown command")
 	}
-
-	return
-
 }
