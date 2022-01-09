@@ -137,9 +137,9 @@ func main() {
 	keyFilePath := flag.String("keyfile", "", "Path to your Enpass vault keyfile.")
 	logLevelStr := flag.String("log", defaultLogLevel.String(), "The log level from debug (5) to error (1).")
 	nonInteractive := flag.Bool("nonInteractive", false, "Disable prompts and fail instead.")
-	sort := flag.Bool("sort", false, "Sort the output by title and username.")
-	trashed := flag.Bool("trashed", false, "Show trashed items in output.")
-	clipboardPrimary := flag.Bool("clipboardPrimary", false, "Use primary X selection instead of clipboard.")
+	sort := flag.Bool("sort", false, "Sort the output by title and username of the 'list' and 'show' command.")
+	trashed := flag.Bool("trashed", false, "Show trashed items in the 'list' and 'show' command.")
+	clipboardPrimary := flag.Bool("clipboardPrimary", false, "Use primary X selection instead of clipboard for the 'copy' command.")
 
 	flag.Parse()
 

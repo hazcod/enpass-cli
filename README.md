@@ -40,10 +40,10 @@ Flags
 -----
 | Name | Description |
 | :---: | --- |
-| `-vault` | Path to your Enpass vault |
-| `-keyfile` | Path to your Enpass vault keyfile |
-| `-type` | The type of your card. (password, ...) |
-| `-log` | The log level from debug (5) to error (1) |
+| `-vault=PATH` | Path to your Enpass vault |
+| `-keyfile=PATH` | Path to your Enpass vault keyfile |
+| `-type=TYPE` | The type of your card (password, ...) |
+| `-log=LEVEL` | The log level from debug (5) to error (1) |
 | `-nonInteractive` | Disable prompts and fail instead |
 | `-sort` | Sort the output by title and username of the `list` and `show` command |
 | `-trashed` | Show trashed items in the `list` and `show` command |
