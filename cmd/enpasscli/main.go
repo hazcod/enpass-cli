@@ -144,7 +144,7 @@ func main() {
 	flag.Parse()
 
 	if flag.NArg() == 0 {
-		fmt.Println("Specify a command: version, list, show, copy, pw")
+		fmt.Println("Specify a command: version, list, show, copy, pass")
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -203,6 +203,8 @@ func main() {
 		copyEntry(logger, &vault, *cardType, filters)
 	case "pass":
 		entryPassword(logger, &vault, *cardType, filters)
+	default:
+		logger.WithField("command", command).Fatal("unknown command")
 	}
 
 	return

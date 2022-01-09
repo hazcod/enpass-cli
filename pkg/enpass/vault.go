@@ -226,9 +226,16 @@ func (v *Vault) GetUniqueEntry(cardType string, filters []string) (*Card, error)
 		return nil, errors.New("card not found")
 	}
 
-	if len(cards) > 1 {
-		return nil, errors.New("multiple cards match that title")
+	var uniqueCard *Card
+	for _, card := range cards {
+		if card.IsTrashed() || card.IsDeleted() {
+			continue
+		} else if uniqueCard == nil {
+			uniqueCard = &card
+		} else {
+			return nil, errors.New("multiple cards match that title")
+		}
 	}
 
-	return &cards[0], nil
+	return uniqueCard, nil
 }
