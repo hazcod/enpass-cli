@@ -22,7 +22,8 @@ const (
 
 var (
 	// overwritten by go build
-	version = "dev"
+	version     = "dev"
+	interactive = true
 )
 
 func sortEntries(cards []enpass.Card) {
@@ -119,11 +120,11 @@ func main() {
 	cardType := flag.String("type", "password", "The type of your card. (password, ...)")
 	keyFilePath := flag.String("keyfile", "", "Path to your Enpass vault keyfile.")
 	logLevelStr := flag.String("log", defaultLogLevel.String(), "The log level from debug (5) to error (1).")
+	nonInteractive := flag.Bool("nonInteractive", false, "Disable input prompts and fail instead.")
+	enablePin := flag.Bool("pin", false, "Enable PIN.")
 	sort := flag.Bool("sort", false, "Sort the output by title and username.")
 	trashed := flag.Bool("trashed", false, "Show trashed items in output.")
 	clipboardPrimary := flag.Bool("clipboardPrimary", false, "Use primary X selection instead of clipboard.")
-	pinEnabled := flag.Bool("pin", false, "Enable PIN.")
-
 	flag.Parse()
 
 	if flag.NArg() == 0 {
@@ -141,6 +142,8 @@ func main() {
 
 	command := strings.ToLower(flag.Arg(0))
 	filters := flag.Args()[1:]
+
+	interactive = !*nonInteractive
 
 	if *clipboardPrimary {
 		clipboard.Primary = true
@@ -162,7 +165,7 @@ func main() {
 	}
 
 	var store *pin.SecureStore
-	if !*pinEnabled {
+	if !*enablePin {
 		logger.Debug("PIN disabled")
 	} else if !accessData.IsComplete() {
 		store = initAndReadSecureStore(logger, accessData)
@@ -184,6 +187,8 @@ func main() {
 	logger.Debug("initialized vault")
 
 	switch command {
+	case "init":
+		// just init vault without doing anything
 	case "list":
 		listEntries(logger, &vault, *cardType, *sort, *trashed, filters)
 	case "show":
@@ -191,7 +196,6 @@ func main() {
 	case "copy":
 		copyEntry(logger, &vault, *cardType, filters)
 	default:
-		// TODO check / rm commands ?
 		logger.WithField("command", command).Fatal("unknown command")
 	}
 
@@ -223,10 +227,12 @@ func initAndReadSecureStore(logger *logrus.Logger, accessData *enpass.VaultAcces
 }
 
 func prompt(logger *logrus.Logger, msg string) string {
-	if response, err := ask.HiddenAsk("Enter " + msg + ": "); err != nil {
-		logger.WithError(err).Fatal("could not prompt for " + msg)
-	} else {
-		return response
+	if interactive {
+		if response, err := ask.HiddenAsk("Enter " + msg + ": "); err != nil {
+			logger.WithError(err).Fatal("could not prompt for " + msg)
+		} else {
+			return response
+		}
 	}
 	return ""
 }
