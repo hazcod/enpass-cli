@@ -74,19 +74,19 @@ func (v *Vault) checkPaths() error {
 // Initialize : setup a connection to the Enpass database. Call this before doing anything.
 func (v *Vault) Initialize(databasePath string, keyfilePath string, password string) error {
 	if databasePath == "" {
-		return errors.New("empty v path provided")
+		return errors.New("empty vault path provided")
 	}
 
 	if password == "" {
-		return errors.New("empty v password provided")
+		return errors.New("empty vault password provided")
 	}
 
 	v.databaseFilename = filepath.Join(databasePath, vaultFileName)
 	v.vaultInfoFilename = filepath.Join(databasePath, vaultInfoFileName)
 
-	v.Logger.Debug("checking provided v paths")
+	v.Logger.Debug("checking provided vault paths")
 	if err := v.checkPaths(); err != nil {
-		return errors.Wrap(err, "invalid v path provided")
+		return errors.Wrap(err, "invalid vault path provided")
 	}
 
 	v.Logger.Debug("loading vault info")
@@ -112,7 +112,7 @@ func (v *Vault) Initialize(databasePath string, keyfilePath string, password str
 	v.Logger.Debug("generating master password")
 	masterPassword, err := v.generateMasterPassword([]byte(password), keyfilePath)
 	if err != nil {
-		return errors.Wrap(err, "could not generate v unlock key")
+		return errors.Wrap(err, "could not generate vault unlock key")
 	}
 
 	v.Logger.Debug("extracting salt from database")
@@ -214,4 +214,28 @@ func (v *Vault) GetEntries(cardType string, filters []string) ([]Card, error) {
 	}
 
 	return cards, nil
+}
+
+func (v *Vault) GetUniqueEntry(cardType string, filters []string) (*Card, error) {
+	cards, err := v.GetEntries(cardType, filters)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not retrieve cards")
+	}
+
+	if len(cards) == 0 {
+		return nil, errors.New("card not found")
+	}
+
+	var uniqueCard *Card
+	for _, card := range cards {
+		if card.IsTrashed() || card.IsDeleted() {
+			continue
+		} else if uniqueCard == nil {
+			uniqueCard = &card
+		} else {
+			return nil, errors.New("multiple cards match that title")
+		}
+	}
+
+	return uniqueCard, nil
 }
