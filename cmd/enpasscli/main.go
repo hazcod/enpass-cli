@@ -12,6 +12,7 @@ import (
 	"github.com/atotto/clipboard"
 	"github.com/hazcod/enpass-cli/pkg/enpass"
 	"github.com/hazcod/enpass-cli/pkg/pin"
+
 	"github.com/miquella/ask"
 	"github.com/sirupsen/logrus"
 )
@@ -22,9 +23,21 @@ const (
 
 var (
 	// overwritten by go build
-	version     = "dev"
+	version = "dev"
+	// enables prompts
 	interactive = true
 )
+
+func prompt(logger *logrus.Logger, msg string) string {
+	if interactive {
+		if response, err := ask.HiddenAsk("Enter " + msg + ": "); err != nil {
+			logger.WithError(err).Fatal("could not prompt for " + msg)
+		} else {
+			return response
+		}
+	}
+	return ""
+}
 
 func sortEntries(cards []enpass.Card) {
 	// Sort by username preserving original order
@@ -92,20 +105,12 @@ func showEntries(logger *logrus.Logger, vault *enpass.Vault, cardType string, so
 }
 
 func copyEntry(logger *logrus.Logger, vault *enpass.Vault, cardType string, filters []string) {
-	cards, err := vault.GetEntries(cardType, filters)
+	card, err := vault.GetUniqueEntry(cardType, filters)
 	if err != nil {
-		logger.WithError(err).Fatal("could not retrieve cards")
+		logger.WithError(err).Fatal("could not retrieve unique card")
 	}
 
-	if len(cards) == 0 {
-		logger.Fatal("card not found")
-	}
-
-	if len(cards) > 1 {
-		logger.WithField("cards", len(cards)).Fatal("multiple cards match that title")
-	}
-
-	password, err := cards[0].Decrypt()
+	password, err := card.Decrypt()
 	if err != nil {
 		logger.WithError(err).Fatal("could not decrypt card")
 	}
@@ -115,20 +120,34 @@ func copyEntry(logger *logrus.Logger, vault *enpass.Vault, cardType string, filt
 	}
 }
 
+func entryPassword(logger *logrus.Logger, vault *enpass.Vault, cardType string, filters []string) {
+	card, err := vault.GetUniqueEntry(cardType, filters)
+	if err != nil {
+		logger.WithError(err).Fatal("could not retrieve unique card")
+	}
+
+	if password, err := card.Decrypt(); err != nil {
+		logger.WithError(err).Fatal("could not decrypt card")
+	} else {
+		fmt.Println(password)
+	}
+}
+
 func main() {
 	vaultPath := flag.String("vault", "", "Path to your Enpass vault.")
 	cardType := flag.String("type", "password", "The type of your card. (password, ...)")
 	keyFilePath := flag.String("keyfile", "", "Path to your Enpass vault keyfile.")
 	logLevelStr := flag.String("log", defaultLogLevel.String(), "The log level from debug (5) to error (1).")
-	nonInteractive := flag.Bool("nonInteractive", false, "Disable input prompts and fail instead.")
+	nonInteractive := flag.Bool("nonInteractive", false, "Disable prompts and fail instead.")
 	enablePin := flag.Bool("pin", false, "Enable PIN.")
-	sort := flag.Bool("sort", false, "Sort the output by title and username.")
-	trashed := flag.Bool("trashed", false, "Show trashed items in output.")
-	clipboardPrimary := flag.Bool("clipboardPrimary", false, "Use primary X selection instead of clipboard.")
+	sort := flag.Bool("sort", false, "Sort the output by title and username of the 'list' and 'show' command.")
+	trashed := flag.Bool("trashed", false, "Show trashed items in the 'list' and 'show' command.")
+	clipboardPrimary := flag.Bool("clipboardPrimary", false, "Use primary X selection instead of clipboard for the 'copy' command.")
+
 	flag.Parse()
 
 	if flag.NArg() == 0 {
-		fmt.Println("Specify a command: version, list, open, copy")
+		fmt.Println("Specify a command: version, list, show, copy, pass")
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -195,6 +214,8 @@ func main() {
 		showEntries(logger, &vault, *cardType, *sort, *trashed, filters)
 	case "copy":
 		copyEntry(logger, &vault, *cardType, filters)
+	case "pass":
+		entryPassword(logger, &vault, *cardType, filters)
 	default:
 		logger.WithField("command", command).Fatal("unknown command")
 	}
@@ -204,9 +225,6 @@ func main() {
 			logger.WithError(err).Fatal("failed to write access data to store")
 		}
 	}
-
-	return
-
 }
 
 func initAndReadSecureStore(logger *logrus.Logger, accessData *enpass.VaultAccessData) *pin.SecureStore {
@@ -224,15 +242,4 @@ func initAndReadSecureStore(logger *logrus.Logger, accessData *enpass.VaultAcces
 		logger.WithError(err).Fatal("could not read access data from store")
 	}
 	return store
-}
-
-func prompt(logger *logrus.Logger, msg string) string {
-	if interactive {
-		if response, err := ask.HiddenAsk("Enter " + msg + ": "); err != nil {
-			logger.WithError(err).Fatal("could not prompt for " + msg)
-		} else {
-			return response
-		}
-	}
-	return ""
 }
