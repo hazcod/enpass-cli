@@ -12,7 +12,6 @@ import (
 	"github.com/hazcod/enpass-cli/pkg/clipboard"
 	"github.com/hazcod/enpass-cli/pkg/enpass"
 	"github.com/hazcod/enpass-cli/pkg/pin"
-
 	"github.com/miquella/ask"
 	"github.com/sirupsen/logrus"
 )
@@ -134,6 +133,7 @@ func entryPassword(logger *logrus.Logger, vault *enpass.Vault, cardType string, 
 }
 
 func main() {
+
 	vaultPath := flag.String("vault", "", "Path to your Enpass vault.")
 	cardType := flag.String("type", "password", "The type of your card. (password, ...)")
 	keyFilePath := flag.String("keyfile", "", "Path to your Enpass vault keyfile.")

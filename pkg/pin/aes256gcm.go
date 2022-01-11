@@ -7,26 +7,25 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/hex"
-	"strings"
 
 	"golang.org/x/crypto/pbkdf2"
 )
 
 const (
-	saltLength      = 16
+	bytesIV         = 12
+	bytesSalt       = 16
 	minKdfIterCount = 10000
 )
+
+func generateRandom(bytes int) []byte {
+	generated := make([]byte, bytes)
+	rand.Read(generated)
+	return generated
+}
 
 func sha256sum(data []byte) []byte {
 	sum := sha256.Sum256(data)
 	return sum[:]
-}
-
-func generateSalt() []byte {
-	salt := make([]byte, saltLength)
-	rand.Read(salt) // Salt http://www.ietf.org/rfc/rfc2898.txt
-	return salt
 }
 
 func deriveKey(passphrase []byte, salt []byte, kdfIterCount int) []byte {
@@ -37,39 +36,36 @@ func deriveKey(passphrase []byte, salt []byte, kdfIterCount int) []byte {
 }
 
 func createCipherGCM(key []byte) (cipher.AEAD, error) {
-	b, err := aes.NewCipher(key)
+	cipherBlock, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
-	return cipher.NewGCM(b)
+	return cipher.NewGCM(cipherBlock)
 }
 
-func encrypt(passphrase []byte, plaintext []byte, kdfIterCount int) (string, error) {
-	salt := generateSalt()
-	key := deriveKey(passphrase, salt, kdfIterCount)
-	iv := make([]byte, 12)
-	rand.Read(iv) // Section 8.2 http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
-	aesgcm, err := createCipherGCM(key)
-	if err != nil {
-		return "", err
-	}
-	data := aesgcm.Seal(nil, iv, plaintext, nil)
-	return hex.EncodeToString(salt) + "-" + hex.EncodeToString(iv) + "-" + hex.EncodeToString(data), nil
-}
-
-func decrypt(passphrase []byte, ciphertext string, kdfIterCount int) ([]byte, error) {
-	arr := strings.Split(ciphertext, "-")
-	salt, _ := hex.DecodeString(arr[0])
-	iv, _ := hex.DecodeString(arr[1])
-	data, _ := hex.DecodeString(arr[2])
+func encrypt(passphrase []byte, plaintext []byte, kdfIterCount int) ([]byte, error) {
+	salt := generateRandom(bytesSalt)
 	key := deriveKey(passphrase, salt, kdfIterCount)
 	aesgcm, err := createCipherGCM(key)
 	if err != nil {
 		return nil, err
 	}
-	data, err = aesgcm.Open(nil, iv, data, nil)
-	if err != nil {
-		return nil, err
-	}
+	iv := generateRandom(bytesIV)
+	ciphertext := aesgcm.Seal(nil, iv, plaintext, nil)
+	data := append(ciphertext, salt...)
+	data = append(iv, data...)
 	return data, nil
+}
+
+func decrypt(passphrase []byte, data []byte, kdfIterCount int) ([]byte, error) {
+	saltIdx := len(data) - bytesSalt
+	iv := data[:bytesIV]
+	ciphertext := data[bytesIV:saltIdx]
+	salt := data[saltIdx:]
+	key := deriveKey(passphrase, salt, kdfIterCount)
+	aesgcm, err := createCipherGCM(key)
+	if err != nil {
+		return nil, err
+	}
+	return aesgcm.Open(nil, iv, ciphertext, nil)
 }
