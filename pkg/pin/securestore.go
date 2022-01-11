@@ -16,30 +16,31 @@ const (
 )
 
 type SecureStore struct {
-	Logger              logrus.Logger
+	logger              logrus.Logger
 	file                *os.File
 	passphrase          []byte
 	wasReadSuccessfully bool
 }
 
-func (store *SecureStore) Initialize(pin string, vaultPath string) error {
+func NewSecureStore(name string, pin string, logLevel logrus.Level) (*SecureStore, error) {
 	var err error
-	store.Logger.Debug("generating store passphrase from pin")
+	store := SecureStore{logger: *logrus.New()}
+	store.logger.SetLevel(logLevel)
+	store.logger.Debug("generating store passphrase from pin")
 	store.passphrase, err = store.generatePassphrase(pin)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	store.Logger.Debug("opening store")
-	store.file, err = store.open(vaultPath)
-	return errors.Wrap(err, "could not open store")
+	store.logger.Debug("opening store")
+	store.file, err = store.getStoreFile(name)
+	return &store, errors.Wrap(err, "could not open store")
 }
 
-func (store *SecureStore) open(vaultPath string) (*os.File, error) {
+func (store *SecureStore) getStoreFile(name string) (*os.File, error) {
 	var storeFile *os.File
 	var err error
-	vaultPath, err = filepath.EvalSymlinks(vaultPath)
-	storeFileName := fileNamePref + filepath.Base(vaultPath)
-	for _, tempDir := range []string{
+	storeFileName := fileNamePref + name
+	for _, tempDir := range [...]string{
 		os.Getenv("TMPDIR"),
 		os.Getenv("XDG_RUNTIME_DIR"),
 		"/dev/shm",
@@ -48,13 +49,13 @@ func (store *SecureStore) open(vaultPath string) (*os.File, error) {
 		if tempDir == "" {
 			continue
 		}
-		store.Logger.WithField("tempDir", tempDir).Debug("trying store directory")
+		store.logger.WithField("tempDir", tempDir).Debug("trying store directory")
 		storeFilePath := filepath.Join(tempDir, storeFileName)
 		storeFile, err = os.OpenFile(storeFilePath, os.O_CREATE, fileMode)
 		if err == nil {
 			break
 		}
-		store.Logger.WithError(err).Debug("skipping store directory")
+		store.logger.WithError(err).Debug("skipping store directory")
 	}
 	return storeFile, err
 }
@@ -72,12 +73,12 @@ func (store *SecureStore) Read() ([]byte, error) {
 	if store.passphrase == nil {
 		return nil, errors.New("empty store passphrase")
 	}
-	store.Logger.Debug("reading store")
+	store.logger.Debug("reading store")
 	data, _ := os.ReadFile(store.file.Name())
 	if data == nil || len(data) == 0 {
 		return nil, nil // nothing to read
 	}
-	store.Logger.Debug("decrypting store data")
+	store.logger.Debug("decrypting store data")
 	dbKey, err := decrypt(store.passphrase, data, kdfIterCount)
 	if err != nil {
 		return nil, err
@@ -93,16 +94,16 @@ func (store *SecureStore) Write(dbKey []byte) error {
 	if store.passphrase == nil {
 		return errors.New("empty store passphrase")
 	}
-	store.Logger.Debug("encrypting store data")
+	store.logger.Debug("encrypting store data")
 	data, err := encrypt(store.passphrase, dbKey, kdfIterCount)
 	if err != nil {
 		return err
 	}
-	store.Logger.Debug("writing store")
+	store.logger.Debug("writing store")
 	return os.WriteFile(store.file.Name(), data, fileMode)
 }
 
-func (store *SecureStore) Clear() error {
+func (store *SecureStore) Clean() error {
 	store.wasReadSuccessfully = false
 	return os.Remove(store.file.Name())
 }

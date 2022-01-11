@@ -24,7 +24,7 @@ const (
 // Vault : vault is the container object for vault-related operations
 type Vault struct {
 	// Logger : the logger instance
-	Logger logrus.Logger
+	logger logrus.Logger
 
 	// vault.enpassdb : SQLCipher database
 	databaseFilename string
@@ -43,7 +43,6 @@ type Vault struct {
 }
 
 type VaultAccessData struct {
-	VaultPath   string
 	KeyfilePath string
 	Password    string
 	DBKey       []byte
@@ -51,6 +50,42 @@ type VaultAccessData struct {
 
 func (accessData *VaultAccessData) IsComplete() bool {
 	return accessData.Password != "" || accessData.DBKey != nil
+}
+
+// NewVault : Create new instance of vault and load vault info
+func NewVault(vaultPath string, logLevel logrus.Level) (*Vault, error) {
+	v := Vault{logger: *logrus.New()}
+	v.logger.SetLevel(logLevel)
+
+	if vaultPath == "" {
+		return nil, errors.New("empty vault path provided")
+	}
+
+	vaultPath, _ = filepath.EvalSymlinks(vaultPath)
+	v.databaseFilename = filepath.Join(vaultPath, vaultFileName)
+	v.vaultInfoFilename = filepath.Join(vaultPath, vaultInfoFileName)
+
+	v.logger.Debug("checking provided vault paths")
+	if _, err := os.Stat(v.databaseFilename); os.IsNotExist(err) {
+		return nil, errors.New("vault does not exist: " + v.databaseFilename)
+	}
+	if _, err := os.Stat(v.vaultInfoFilename); os.IsNotExist(err) {
+		return nil, errors.New("vault info file does not exist: " + v.vaultInfoFilename)
+	}
+
+	v.logger.Debug("loading vault info")
+	var err error
+	v.vaultInfo, err = v.loadVaultInfo()
+	if err != nil {
+		return nil, errors.Wrap(err, "could not load vault info")
+	}
+
+	v.logger.
+		WithField("db_path", vaultFileName).
+		WithField("info_path", vaultInfoFileName).
+		Debug("initialized paths")
+
+	return &v, nil
 }
 
 func (v *Vault) openEncryptedDatabase(path string, dbKey []byte) (err error) {
@@ -72,7 +107,7 @@ func (v *Vault) openEncryptedDatabase(path string, dbKey []byte) (err error) {
 
 func (v *Vault) generateAndSetDBKey(accessData *VaultAccessData) error {
 	if accessData.DBKey != nil {
-		v.Logger.Debug("skipping database key generation, already set")
+		v.logger.Debug("skipping database key generation, already set")
 		return nil
 	}
 
@@ -86,19 +121,19 @@ func (v *Vault) generateAndSetDBKey(accessData *VaultAccessData) error {
 		return errors.New("you are specifying an unnecessary keyfile")
 	}
 
-	v.Logger.Debug("generating master password")
+	v.logger.Debug("generating master password")
 	masterPassword, err := v.generateMasterPassword([]byte(accessData.Password), accessData.KeyfilePath)
 	if err != nil {
 		return errors.Wrap(err, "could not generate vault unlock key")
 	}
 
-	v.Logger.Debug("extracting salt from database")
+	v.logger.Debug("extracting salt from database")
 	keySalt, err := v.extractSalt()
 	if err != nil {
 		return errors.Wrap(err, "could not get master password salt")
 	}
 
-	v.Logger.Debug("deriving decryption key")
+	v.logger.Debug("deriving decryption key")
 	accessData.DBKey, err = v.deriveKey(masterPassword, keySalt)
 	if err != nil {
 		return errors.Wrap(err, "could not derive database key from master password")
@@ -107,56 +142,20 @@ func (v *Vault) generateAndSetDBKey(accessData *VaultAccessData) error {
 	return nil
 }
 
-func (v *Vault) checkPaths() error {
-	if _, err := os.Stat(v.databaseFilename); os.IsNotExist(err) {
-		return errors.New("vault does not exist: " + v.databaseFilename)
-	}
-
-	if _, err := os.Stat(v.vaultInfoFilename); os.IsNotExist(err) {
-		return errors.New("vault info file does not exist: " + v.vaultInfoFilename)
-	}
-
-	return nil
-}
-
-// Initialize : setup a connection to the Enpass database. Call this before doing anything.
-func (v *Vault) Initialize(accessData *VaultAccessData) error {
-	if accessData.VaultPath == "" {
-		return errors.New("empty vault path provided")
-	}
-
-	v.databaseFilename = filepath.Join(accessData.VaultPath, vaultFileName)
-	v.vaultInfoFilename = filepath.Join(accessData.VaultPath, vaultInfoFileName)
-
-	v.Logger.Debug("checking provided vault paths")
-	if err := v.checkPaths(); err != nil {
-		return errors.Wrap(err, "invalid vault path provided")
-	}
-
-	v.Logger.Debug("loading vault info")
-	var err error
-	v.vaultInfo, err = v.loadVaultInfo()
-	if err != nil {
-		return errors.Wrap(err, "could not load vault info")
-	}
-
-	v.Logger.
-		WithField("db_path", vaultFileName).
-		WithField("info_path", vaultInfoFileName).
-		Debug("initialized paths")
-
-	v.Logger.Debug("generating database key")
+// Open : setup a connection to the Enpass database. Call this before doing anything.
+func (v *Vault) Open(accessData *VaultAccessData) error {
+	v.logger.Debug("generating database key")
 	if err := v.generateAndSetDBKey(accessData); err != nil {
 		return errors.Wrap(err, "could not generate database key")
 	}
 
-	v.Logger.Debug("opening encrypted database")
+	v.logger.Debug("opening encrypted database")
 	if err := v.openEncryptedDatabase(v.databaseFilename, accessData.DBKey); err != nil {
 		return errors.Wrap(err, "could not open encrypted database")
 	}
 
 	var tableName string
-	err = v.db.QueryRow(`
+	err := v.db.QueryRow(`
 		SELECT name
 		FROM sqlite_master
 		WHERE type='table' AND name='item'

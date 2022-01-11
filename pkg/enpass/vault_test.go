@@ -12,26 +12,26 @@ const (
 )
 
 func TestVault_Initialize(t *testing.T) {
-	vault := Vault{
-		Logger: *logrus.New(),
-	}
-	vault.Logger.SetLevel(logrus.ErrorLevel)
+	vault, err := NewVault(vaultPath, logrus.ErrorLevel)
 	defer vault.Close()
-	accessData := &VaultAccessData{VaultPath: vaultPath, Password: testPassword}
-	if err := vault.Initialize(accessData); err != nil {
+	if err != nil {
 		t.Errorf("vault initialization failed: %+v", err)
+	}
+	accessData := &VaultAccessData{Password: testPassword}
+	if err := vault.Open(accessData); err != nil {
+		t.Errorf("opening vault failed: %+v", err)
 	}
 }
 
 func TestVault_GetEntries(t *testing.T) {
-	vault := Vault{
-		Logger: *logrus.New(),
-	}
-	vault.Logger.SetLevel(logrus.ErrorLevel)
+	vault, err := NewVault(vaultPath, logrus.ErrorLevel)
 	defer vault.Close()
-	accessData := &VaultAccessData{VaultPath: vaultPath, Password: testPassword}
-	if err := vault.Initialize(accessData); err != nil {
+	if err != nil {
 		t.Errorf("vault initialization failed: %+v", err)
+	}
+	accessData := &VaultAccessData{Password: testPassword}
+	if err := vault.Open(accessData); err != nil {
+		t.Errorf("opening vault failed: %+v", err)
 	}
 
 	entries, err := vault.GetEntries("password", nil)

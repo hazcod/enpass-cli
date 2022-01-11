@@ -18,6 +18,13 @@ import (
 
 const (
 	defaultLogLevel = logrus.InfoLevel
+	cmdVersion      = "version"
+	cmdHelp         = "help"
+	cmdInit         = "init"
+	cmdList         = "list"
+	cmdShow         = "show"
+	cmdCopy         = "copy"
+	cmdPass         = "pass"
 )
 
 var (
@@ -25,6 +32,7 @@ var (
 	version = "dev"
 	// enables prompts
 	interactive = true
+	commands    = map[string]struct{}{cmdVersion: {}, cmdHelp: {}, cmdInit: {}, cmdList: {}, cmdShow: {}, cmdCopy: {}, cmdPass: {}}
 )
 
 func prompt(logger *logrus.Logger, msg string) string {
@@ -36,6 +44,16 @@ func prompt(logger *logrus.Logger, msg string) string {
 		}
 	}
 	return ""
+}
+
+func printHelp() {
+	fmt.Print("Valid commands: ")
+	for cmd := range commands {
+		fmt.Printf("%s, ", cmd)
+	}
+	fmt.Println()
+	flag.Usage()
+	os.Exit(1)
 }
 
 func sortEntries(cards []enpass.Card) {
@@ -132,6 +150,42 @@ func entryPassword(logger *logrus.Logger, vault *enpass.Vault, cardType string, 
 	}
 }
 
+func getVaultAccessData(logger *logrus.Logger, vaultPath string, enablePin bool) (*enpass.VaultAccessData, *pin.SecureStore) {
+	accessData := &enpass.VaultAccessData{
+		Password: os.Getenv("MASTERPW"),
+	}
+
+	var store *pin.SecureStore
+	if !enablePin {
+		logger.Debug("PIN disabled")
+	} else if !accessData.IsComplete() {
+		logger.Debug("PIN enabled, using store")
+
+		storePin := os.Getenv("PIN")
+		if storePin == "" {
+			storePin = prompt(logger, "PIN")
+		}
+
+		var err error
+		store, err = pin.NewSecureStore(filepath.Base(vaultPath), storePin, logger.Level)
+		if err != nil {
+			logger.WithError(err).Fatal("could not initialize store")
+		}
+		logger.Debug("initialized store")
+
+		if accessData.DBKey, err = store.Read(); err != nil {
+			logger.WithError(err).Fatal("could not read access data from store")
+		}
+		logger.Debug("read access data from store")
+	}
+
+	if !accessData.IsComplete() {
+		accessData.Password = prompt(logger, "master password")
+	}
+
+	return accessData, store
+}
+
 func main() {
 	vaultPath := flag.String("vault", "", "Path to your Enpass vault.")
 	cardType := flag.String("type", "password", "The type of your card. (password, ...)")
@@ -145,12 +199,6 @@ func main() {
 
 	flag.Parse()
 
-	if flag.NArg() == 0 {
-		fmt.Println("Specify a command: version, list, show, copy, pass")
-		flag.Usage()
-		os.Exit(1)
-	}
-
 	logLevel, err := logrus.ParseLevel(*logLevelStr)
 	if err != nil {
 		logrus.WithError(err).Fatal("invalid log level specified")
@@ -158,8 +206,25 @@ func main() {
 	logger := logrus.New()
 	logger.SetLevel(logLevel)
 
-	command := strings.ToLower(flag.Arg(0))
+	cmd := strings.ToLower(flag.Arg(0))
 	filters := flag.Args()[1:]
+
+	if _, contains := commands[cmd]; !contains {
+		printHelp()
+		logger.Exit(1)
+	}
+
+	switch cmd {
+	case cmdHelp:
+		printHelp()
+		return
+	case cmdVersion:
+		logger.Printf(
+			"%s arch=%s os=%s version=%s",
+			filepath.Base(os.Args[0]), runtime.GOARCH, runtime.GOOS, version,
+		)
+		return
+	}
 
 	interactive = !*nonInteractive
 
@@ -168,60 +233,37 @@ func main() {
 		logger.Debug("primary X selection enabled")
 	}
 
-	if command == "version" {
-		logger.Printf(
-			"%s arch=%s os=%s version=%s",
-			filepath.Base(os.Args[0]), runtime.GOARCH, runtime.GOOS, version,
-		)
-		return
+	vault, err := enpass.NewVault(*vaultPath, logger.Level)
+	if err != nil {
+		logger.WithError(err).Fatal("could not create vault")
 	}
 
-	accessData := &enpass.VaultAccessData{
-		VaultPath:   *vaultPath,
-		KeyfilePath: *keyFilePath,
-		Password:    os.Getenv("MASTERPW"),
-	}
+	accessData, store := getVaultAccessData(logger, *vaultPath, *enablePin)
+	accessData.KeyfilePath = *keyFilePath
 
-	var store *pin.SecureStore
-	if !*enablePin {
-		logger.Debug("PIN disabled")
-	} else if !accessData.IsComplete() {
-		logger.Debug("PIN enabled, using store")
-		store = initSecureStore(logger, accessData.VaultPath)
-		if accessData.DBKey, err = store.Read(); err != nil {
-			logger.WithError(err).Fatal("could not read access data from store")
-		}
-		logger.Debug("read access data from store")
-	}
-
-	if !accessData.IsComplete() {
-		accessData.Password = prompt(logger, "master password")
-	}
-
-	vault := enpass.Vault{Logger: *logrus.New()}
-	vault.Logger.SetLevel(logger.Level)
-
-	if err := vault.Initialize(accessData); err != nil {
+	if err := vault.Open(accessData); err != nil {
 		logger.WithError(err).Error("could not open vault")
 		logger.Exit(2)
 	}
-	defer func() { _ = vault.Close() }()
+	logger.Debug("opened vault")
+	defer func() {
+		vault.Close()
+		logger.Debug("closed vault")
+	}()
 
-	logger.Debug("initialized vault")
-
-	switch command {
-	case "init":
-		// just init vault without doing anything
-	case "list":
-		listEntries(logger, &vault, *cardType, *sort, *trashed, filters)
-	case "show":
-		showEntries(logger, &vault, *cardType, *sort, *trashed, filters)
-	case "copy":
-		copyEntry(logger, &vault, *cardType, filters)
-	case "pass":
-		entryPassword(logger, &vault, *cardType, filters)
+	switch cmd {
+	case cmdInit:
+		// just init vault and store without doing anything
+	case cmdList:
+		listEntries(logger, vault, *cardType, *sort, *trashed, filters)
+	case cmdShow:
+		showEntries(logger, vault, *cardType, *sort, *trashed, filters)
+	case cmdCopy:
+		copyEntry(logger, vault, *cardType, filters)
+	case cmdPass:
+		entryPassword(logger, vault, *cardType, filters)
 	default:
-		logger.WithField("command", command).Fatal("unknown command")
+		logger.WithField("command", cmd).Fatal("unknown command")
 	}
 
 	if store != nil {
@@ -229,18 +271,4 @@ func main() {
 			logger.WithError(err).Fatal("failed to write access data to store")
 		}
 	}
-}
-
-func initSecureStore(logger *logrus.Logger, vaultPath string) *pin.SecureStore {
-	store := pin.SecureStore{Logger: *logrus.New()}
-	store.Logger.SetLevel(logger.Level)
-	storePin := os.Getenv("PIN")
-	if storePin == "" {
-		storePin = prompt(logger, "PIN")
-	}
-	if err := store.Initialize(storePin, vaultPath); err != nil {
-		logger.WithError(err).Fatal("could not initialize store")
-	}
-	logger.Debug("initialized store")
-	return &store
 }
