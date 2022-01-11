@@ -133,7 +133,6 @@ func entryPassword(logger *logrus.Logger, vault *enpass.Vault, cardType string, 
 }
 
 func main() {
-
 	vaultPath := flag.String("vault", "", "Path to your Enpass vault.")
 	cardType := flag.String("type", "password", "The type of your card. (password, ...)")
 	keyFilePath := flag.String("keyfile", "", "Path to your Enpass vault keyfile.")
@@ -187,7 +186,12 @@ func main() {
 	if !*enablePin {
 		logger.Debug("PIN disabled")
 	} else if !accessData.IsComplete() {
-		store = initAndReadSecureStore(logger, accessData)
+		logger.Debug("PIN enabled, using store")
+		store = initSecureStore(logger, accessData.VaultPath)
+		if accessData.DBKey, err = store.Read(); err != nil {
+			logger.WithError(err).Fatal("could not read access data from store")
+		}
+		logger.Debug("read access data from store")
 	}
 
 	if !accessData.IsComplete() {
@@ -227,19 +231,16 @@ func main() {
 	}
 }
 
-func initAndReadSecureStore(logger *logrus.Logger, accessData *enpass.VaultAccessData) *pin.SecureStore {
+func initSecureStore(logger *logrus.Logger, vaultPath string) *pin.SecureStore {
+	store := pin.SecureStore{Logger: *logrus.New()}
+	store.Logger.SetLevel(logger.Level)
 	storePin := os.Getenv("PIN")
 	if storePin == "" {
 		storePin = prompt(logger, "PIN")
 	}
-	logger.Debug("initialising secure store")
-	store, err := pin.NewSecureStore(storePin, accessData.VaultPath)
-	if err != nil {
-		logger.WithError(err).Fatal("could not initialise secure store")
+	if err := store.Initialize(storePin, vaultPath); err != nil {
+		logger.WithError(err).Fatal("could not initialize store")
 	}
-	logger.Debug("reading from store")
-	if accessData.DBKey, err = store.Read(); err != nil {
-		logger.WithError(err).Fatal("could not read access data from store")
-	}
-	return store
+	logger.Debug("initialized store")
+	return &store
 }

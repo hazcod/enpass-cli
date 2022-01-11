@@ -50,8 +50,7 @@ type VaultAccessData struct {
 }
 
 func (accessData *VaultAccessData) IsComplete() bool {
-	return accessData.VaultPath != "" &&
-		(accessData.Password != "" || accessData.DBKey != nil)
+	return accessData.Password != "" || accessData.DBKey != nil
 }
 
 func (v *Vault) openEncryptedDatabase(path string, dbKey []byte) (err error) {
