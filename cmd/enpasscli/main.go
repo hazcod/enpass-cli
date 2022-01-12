@@ -32,7 +32,8 @@ var (
 	version = "dev"
 	// enables prompts
 	interactive = true
-	commands    = map[string]struct{}{cmdVersion: {}, cmdHelp: {}, cmdInit: {}, cmdList: {}, cmdShow: {}, cmdCopy: {}, cmdPass: {}}
+	// complete command list
+	commands = map[string]struct{}{cmdVersion: {}, cmdHelp: {}, cmdInit: {}, cmdList: {}, cmdShow: {}, cmdCopy: {}, cmdPass: {}}
 )
 
 func prompt(logger *logrus.Logger, msg string) string {
@@ -166,7 +167,7 @@ func getVaultAccessData(logger *logrus.Logger, vaultPath string, enablePin bool)
 			storePin = prompt(logger, "PIN")
 		}
 
-		var err error
+		vaultPath, err := filepath.EvalSymlinks(vaultPath)
 		store, err = pin.NewSecureStore(filepath.Base(vaultPath), storePin, logger.Level)
 		if err != nil {
 			logger.WithError(err).Fatal("could not initialize store")

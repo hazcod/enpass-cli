@@ -73,7 +73,7 @@ func (store *SecureStore) Read() ([]byte, error) {
 	if store.passphrase == nil {
 		return nil, errors.New("empty store passphrase")
 	}
-	store.logger.Debug("reading store")
+	store.logger.Debug("reading store data")
 	data, _ := os.ReadFile(store.file.Name())
 	if data == nil || len(data) == 0 {
 		return nil, nil // nothing to read
@@ -99,7 +99,7 @@ func (store *SecureStore) Write(dbKey []byte) error {
 	if err != nil {
 		return err
 	}
-	store.logger.Debug("writing store")
+	store.logger.Debug("writing store data")
 	return os.WriteFile(store.file.Name(), data, fileMode)
 }
 
