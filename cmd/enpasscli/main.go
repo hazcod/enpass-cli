@@ -6,7 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	s "sort"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/hazcod/enpass-cli/pkg/clipboard"
@@ -17,27 +18,61 @@ import (
 )
 
 const (
-	defaultLogLevel = logrus.InfoLevel
-	cmdVersion      = "version"
-	cmdHelp         = "help"
-	cmdInit         = "init"
-	cmdList         = "list"
-	cmdShow         = "show"
-	cmdCopy         = "copy"
-	cmdPass         = "pass"
+	// commands
+	cmdVersion = "version"
+	cmdHelp    = "help"
+	cmdInit    = "init"
+	cmdList    = "list"
+	cmdShow    = "show"
+	cmdCopy    = "copy"
+	cmdPass    = "pass"
+	// defaults
+	defaultLogLevel        = logrus.InfoLevel
+	pinMinLength           = 8
+	pinDefaultKdfIterCount = 100000
 )
 
 var (
 	// overwritten by go build
 	version = "dev"
-	// enables prompts
-	interactive = true
-	// complete command list
-	commands = map[string]struct{}{cmdVersion: {}, cmdHelp: {}, cmdInit: {}, cmdList: {}, cmdShow: {}, cmdCopy: {}, cmdPass: {}}
+	// set of all commands
+	commands = map[string]struct{}{cmdVersion: {}, cmdHelp: {}, cmdInit: {}, cmdList: {},
+		cmdShow: {}, cmdCopy: {}, cmdPass: {}}
 )
 
-func prompt(logger *logrus.Logger, msg string) string {
-	if interactive {
+type Args struct {
+	command string
+	// params
+	filters []string
+	// flags
+	vaultPath        *string
+	cardType         *string
+	keyFilePath      *string
+	logLevelStr      *string
+	nonInteractive   *bool
+	pinEnable        *bool
+	sort             *bool
+	trashed          *bool
+	clipboardPrimary *bool
+}
+
+func (args *Args) parse() {
+	args.vaultPath = flag.String("vault", "", "Path to your Enpass vault.")
+	args.cardType = flag.String("type", "password", "The type of your card. (password, ...)")
+	args.keyFilePath = flag.String("keyfile", "", "Path to your Enpass vault keyfile.")
+	args.logLevelStr = flag.String("log", defaultLogLevel.String(), "The log level from debug (5) to error (1).")
+	args.nonInteractive = flag.Bool("nonInteractive", false, "Disable prompts and fail instead.")
+	args.pinEnable = flag.Bool("pin", false, "Enable PIN.")
+	args.sort = flag.Bool("sort", false, "Sort the output by title and username of the 'list' and 'show' command.")
+	args.trashed = flag.Bool("trashed", false, "Show trashed items in the 'list' and 'show' command.")
+	args.clipboardPrimary = flag.Bool("clipboardPrimary", false, "Use primary X selection instead of clipboard for the 'copy' command.")
+	flag.Parse()
+	args.command = strings.ToLower(flag.Arg(0))
+	args.filters = flag.Args()[1:]
+}
+
+func prompt(logger *logrus.Logger, args *Args, msg string) string {
+	if !*args.nonInteractive {
 		if response, err := ask.HiddenAsk("Enter " + msg + ": "); err != nil {
 			logger.WithError(err).Fatal("could not prompt for " + msg)
 		} else {
@@ -59,25 +94,25 @@ func printHelp() {
 
 func sortEntries(cards []enpass.Card) {
 	// Sort by username preserving original order
-	s.SliceStable(cards, func(i, j int) bool {
+	sort.SliceStable(cards, func(i, j int) bool {
 		return strings.ToLower(cards[i].Subtitle) < strings.ToLower(cards[j].Subtitle)
 	})
 	// Sort by title, preserving username order
-	s.SliceStable(cards, func(i, j int) bool {
+	sort.SliceStable(cards, func(i, j int) bool {
 		return strings.ToLower(cards[i].Title) < strings.ToLower(cards[j].Title)
 	})
 }
 
-func listEntries(logger *logrus.Logger, vault *enpass.Vault, cardType string, sort bool, trashed bool, filters []string) {
-	cards, err := vault.GetEntries(cardType, filters)
+func listEntries(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
+	cards, err := vault.GetEntries(*args.cardType, args.filters)
 	if err != nil {
 		logger.WithError(err).Fatal("could not retrieve cards")
 	}
-	if sort {
+	if *args.sort {
 		sortEntries(cards)
 	}
 	for _, card := range cards {
-		if card.IsTrashed() && !trashed {
+		if card.IsTrashed() && !*args.trashed {
 			continue
 		}
 		logger.Printf(
@@ -91,16 +126,16 @@ func listEntries(logger *logrus.Logger, vault *enpass.Vault, cardType string, so
 	}
 }
 
-func showEntries(logger *logrus.Logger, vault *enpass.Vault, cardType string, sort bool, trashed bool, filters []string) {
-	cards, err := vault.GetEntries(cardType, filters)
+func showEntries(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
+	cards, err := vault.GetEntries(*args.cardType, args.filters)
 	if err != nil {
 		logger.WithError(err).Fatal("could not retrieve cards")
 	}
-	if sort {
+	if *args.sort {
 		sortEntries(cards)
 	}
 	for _, card := range cards {
-		if card.IsTrashed() && !trashed {
+		if card.IsTrashed() && !*args.trashed {
 			continue
 		}
 		password, err := card.Decrypt()
@@ -122,8 +157,8 @@ func showEntries(logger *logrus.Logger, vault *enpass.Vault, cardType string, so
 	}
 }
 
-func copyEntry(logger *logrus.Logger, vault *enpass.Vault, cardType string, filters []string) {
-	card, err := vault.GetUniqueEntry(cardType, filters)
+func copyEntry(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
+	card, err := vault.GetUniqueEntry(*args.cardType, args.filters)
 	if err != nil {
 		logger.WithError(err).Fatal("could not retrieve unique card")
 	}
@@ -133,13 +168,18 @@ func copyEntry(logger *logrus.Logger, vault *enpass.Vault, cardType string, filt
 		logger.WithError(err).Fatal("could not decrypt card")
 	}
 
+	if *args.clipboardPrimary {
+		clipboard.Primary = true
+		logger.Debug("primary X selection enabled")
+	}
+
 	if err := clipboard.WriteAll(password); err != nil {
 		logger.WithError(err).Fatal("could not copy password to clipboard")
 	}
 }
 
-func entryPassword(logger *logrus.Logger, vault *enpass.Vault, cardType string, filters []string) {
-	card, err := vault.GetUniqueEntry(cardType, filters)
+func entryPassword(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
+	card, err := vault.GetUniqueEntry(*args.cardType, args.filters)
 	if err != nil {
 		logger.WithError(err).Fatal("could not retrieve unique card")
 	}
@@ -151,25 +191,35 @@ func entryPassword(logger *logrus.Logger, vault *enpass.Vault, cardType string, 
 	}
 }
 
-func getVaultAccessData(logger *logrus.Logger, vaultPath string, enablePin bool) (*enpass.VaultAccessData, *pin.SecureStore) {
+func assembleVaultAccessData(logger *logrus.Logger, args *Args) (*enpass.VaultAccessData, *pin.SecureStore) {
 	accessData := &enpass.VaultAccessData{
 		Password: os.Getenv("MASTERPW"),
 	}
 
 	var store *pin.SecureStore
-	if !enablePin {
+	if !*args.pinEnable {
 		logger.Debug("PIN disabled")
 	} else if !accessData.IsComplete() {
 		logger.Debug("PIN enabled, using store")
 
-		storePin := os.Getenv("PIN")
-		if storePin == "" {
-			storePin = prompt(logger, "PIN")
+		vaultPath, err := filepath.EvalSymlinks(*args.vaultPath)
+		store, err = pin.NewSecureStore(filepath.Base(vaultPath), logger.Level)
+		if err != nil {
+			logger.WithError(err).Fatal("could not create store")
 		}
 
-		vaultPath, err := filepath.EvalSymlinks(vaultPath)
-		store, err = pin.NewSecureStore(filepath.Base(vaultPath), storePin, logger.Level)
+		storePin := os.Getenv("ENP_PIN")
+		if storePin == "" {
+			storePin = prompt(logger, args, "PIN")
+		}
+		if len(storePin) < pinMinLength {
+			logger.Fatal("PIN too short")
+		}
+		pinKdfIterCount, err := strconv.ParseInt(os.Getenv("ENP_PIN_ITER_COUNT"), 10, 64)
 		if err != nil {
+			pinKdfIterCount = pinDefaultKdfIterCount
+		}
+		if err := store.GeneratePassphrase(storePin, int(pinKdfIterCount)); err != nil {
 			logger.WithError(err).Fatal("could not initialize store")
 		}
 		logger.Debug("initialized store")
@@ -181,41 +231,29 @@ func getVaultAccessData(logger *logrus.Logger, vaultPath string, enablePin bool)
 	}
 
 	if !accessData.IsComplete() {
-		accessData.Password = prompt(logger, "master password")
+		accessData.Password = prompt(logger, args, "master password")
 	}
 
 	return accessData, store
 }
 
 func main() {
-	vaultPath := flag.String("vault", "", "Path to your Enpass vault.")
-	cardType := flag.String("type", "password", "The type of your card. (password, ...)")
-	keyFilePath := flag.String("keyfile", "", "Path to your Enpass vault keyfile.")
-	logLevelStr := flag.String("log", defaultLogLevel.String(), "The log level from debug (5) to error (1).")
-	nonInteractive := flag.Bool("nonInteractive", false, "Disable prompts and fail instead.")
-	enablePin := flag.Bool("pin", false, "Enable PIN.")
-	sort := flag.Bool("sort", false, "Sort the output by title and username of the 'list' and 'show' command.")
-	trashed := flag.Bool("trashed", false, "Show trashed items in the 'list' and 'show' command.")
-	clipboardPrimary := flag.Bool("clipboardPrimary", false, "Use primary X selection instead of clipboard for the 'copy' command.")
+	args := &Args{}
+	args.parse()
 
-	flag.Parse()
-
-	logLevel, err := logrus.ParseLevel(*logLevelStr)
+	logLevel, err := logrus.ParseLevel(*args.logLevelStr)
 	if err != nil {
 		logrus.WithError(err).Fatal("invalid log level specified")
 	}
 	logger := logrus.New()
 	logger.SetLevel(logLevel)
 
-	cmd := strings.ToLower(flag.Arg(0))
-	filters := flag.Args()[1:]
-
-	if _, contains := commands[cmd]; !contains {
+	if _, contains := commands[args.command]; !contains {
 		printHelp()
 		logger.Exit(1)
 	}
 
-	switch cmd {
+	switch args.command {
 	case cmdHelp:
 		printHelp()
 		return
@@ -227,44 +265,36 @@ func main() {
 		return
 	}
 
-	interactive = !*nonInteractive
-
-	if *clipboardPrimary {
-		clipboard.Primary = true
-		logger.Debug("primary X selection enabled")
-	}
-
-	vault, err := enpass.NewVault(*vaultPath, logger.Level)
+	vault, err := enpass.NewVault(*args.vaultPath, logger.Level)
 	if err != nil {
 		logger.WithError(err).Fatal("could not create vault")
 	}
 
-	accessData, store := getVaultAccessData(logger, *vaultPath, *enablePin)
-	accessData.KeyfilePath = *keyFilePath
+	accessData, store := assembleVaultAccessData(logger, args)
+	accessData.KeyfilePath = *args.keyFilePath
 
+	defer func() {
+		vault.Close()
+	}()
 	if err := vault.Open(accessData); err != nil {
 		logger.WithError(err).Error("could not open vault")
 		logger.Exit(2)
 	}
 	logger.Debug("opened vault")
-	defer func() {
-		vault.Close()
-		logger.Debug("closed vault")
-	}()
 
-	switch cmd {
+	switch args.command {
 	case cmdInit:
-		// just init vault and store without doing anything
+		logger.Debug("init done") // just init vault and store without doing anything
 	case cmdList:
-		listEntries(logger, vault, *cardType, *sort, *trashed, filters)
+		listEntries(logger, vault, args)
 	case cmdShow:
-		showEntries(logger, vault, *cardType, *sort, *trashed, filters)
+		showEntries(logger, vault, args)
 	case cmdCopy:
-		copyEntry(logger, vault, *cardType, filters)
+		copyEntry(logger, vault, args)
 	case cmdPass:
-		entryPassword(logger, vault, *cardType, filters)
+		entryPassword(logger, vault, args)
 	default:
-		logger.WithField("command", cmd).Fatal("unknown command")
+		logger.WithField("command", args.command).Fatal("unknown command")
 	}
 
 	if store != nil {
