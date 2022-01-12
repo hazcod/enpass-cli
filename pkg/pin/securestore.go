@@ -3,6 +3,7 @@ package pin
 import (
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -11,29 +12,23 @@ import (
 const (
 	fileNamePref = "enpasscli-"
 	fileMode     = 0600
-	kdfIterCount = 100000
-	minPinLength = 8
 )
 
 type SecureStore struct {
 	logger              logrus.Logger
 	file                *os.File
 	passphrase          []byte
+	kdfIterCount        int
 	wasReadSuccessfully bool
 }
 
-func NewSecureStore(name string, pin string, logLevel logrus.Level) (*SecureStore, error) {
-	var err error
+func NewSecureStore(name string, logLevel logrus.Level) (*SecureStore, error) {
 	store := SecureStore{logger: *logrus.New()}
 	store.logger.SetLevel(logLevel)
-	store.logger.Debug("generating store passphrase from pin")
-	store.passphrase, err = store.generatePassphrase(pin)
-	if err != nil {
-		return nil, err
-	}
-	store.logger.Debug("opening store")
+	store.logger.Debug("loading store file")
+	var err error
 	store.file, err = store.getStoreFile(name)
-	return &store, errors.Wrap(err, "could not open store")
+	return &store, errors.Wrap(err, "could not load store file")
 }
 
 func (store *SecureStore) getStoreFile(name string) (*os.File, error) {
@@ -60,13 +55,13 @@ func (store *SecureStore) getStoreFile(name string) (*os.File, error) {
 	return storeFile, err
 }
 
-func (store *SecureStore) generatePassphrase(pin string) ([]byte, error) {
-	if len(pin) < minPinLength {
-		return nil, errors.New("PIN too short")
-	}
-	pepper := []byte(os.Getenv("PIN_PEPPER"))
+func (store *SecureStore) GeneratePassphrase(pin string, kdfIterCount int) error {
+	store.logger.WithField("kdfIterCount", kdfIterCount).Debug("generating store passphrase from pin")
+	store.kdfIterCount = kdfIterCount
+	pepper := []byte(os.Getenv("ENP_PIN_PEPPER"))
 	data := append([]byte(pin), pepper...)
-	return sha256sum(data), nil
+	store.passphrase = sha256sum(data)
+	return nil
 }
 
 func (store *SecureStore) Read() ([]byte, error) {
@@ -79,7 +74,10 @@ func (store *SecureStore) Read() ([]byte, error) {
 		return nil, nil // nothing to read
 	}
 	store.logger.Debug("decrypting store data")
-	dbKey, err := decrypt(store.passphrase, data, kdfIterCount)
+	ts := time.Now().UnixNano()
+	dbKey, err := decrypt(store.passphrase, data, store.kdfIterCount)
+	ts = time.Now().UnixNano() - ts
+	store.logger.Trace("decrypted in ", ts/int64(time.Millisecond), "ms")
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +93,7 @@ func (store *SecureStore) Write(dbKey []byte) error {
 		return errors.New("empty store passphrase")
 	}
 	store.logger.Debug("encrypting store data")
-	data, err := encrypt(store.passphrase, dbKey, kdfIterCount)
+	data, err := encrypt(store.passphrase, dbKey, store.kdfIterCount)
 	if err != nil {
 		return err
 	}

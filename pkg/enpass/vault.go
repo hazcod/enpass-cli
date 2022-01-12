@@ -171,7 +171,11 @@ func (v *Vault) Open(accessData *VaultAccessData) error {
 
 // Close : close the connection to the underlying database. Always call this in the end.
 func (v *Vault) Close() error {
-	return v.db.Close()
+	if v.db != nil {
+		err := v.db.Close()
+		v.logger.WithError(err).Debug("closed vault")
+	}
+	return nil
 }
 
 // GetEntries : return the password entries in the Enpass database.
