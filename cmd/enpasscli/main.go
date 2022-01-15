@@ -229,7 +229,7 @@ func initializeStore(logger *logrus.Logger, args *Args) *unlock.SecureStore {
 
 	pepper := os.Getenv("ENP_PIN_PEPPER")
 
-	pinKdfIterCount, err := strconv.ParseInt(os.Getenv("ENP_PIN_ITER_COUNT"), 10, 64)
+	pinKdfIterCount, err := strconv.ParseInt(os.Getenv("ENP_PIN_ITER_COUNT"), 10, 32)
 	if err != nil {
 		pinKdfIterCount = pinDefaultKdfIterCount
 	}
