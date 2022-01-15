@@ -1,4 +1,4 @@
-package pin
+package unlock
 
 // based on https://gist.github.com/tscholl2/dc7dc15dc132ea70a98e8542fefffa28#file-aes-go
 
