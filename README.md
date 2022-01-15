@@ -34,7 +34,9 @@ Commands
 | `show FILTER` | List vault entries matching FILTER with password |
 | `copy FILTER` | Copy the password of a vault entry matching FILTER to the clipboard |
 | `pass FILTER` | Print the password of a vaulty entry matching FILTER to stdout |
+| `dryrun` | Opens the vault without reading anything from it |
 | `version` | Print the version |
+| `help` | Print the help text |
 
 Flags
 -----
@@ -45,6 +47,7 @@ Flags
 | `-type=TYPE` | The type of your card (password, ...) |
 | `-log=LEVEL` | The log level from debug (5) to error (1) |
 | `-nonInteractive` | Disable prompts and fail instead |
+| `-pin` | Enable Quick Unlock using a PIN |
 | `-sort` | Sort the output by title and username of the `list` and `show` command |
 | `-trashed` | Show trashed items in the `list` and `show` command |
 | `-clipboardPrimary` | Use primary X selection instead of clipboard for the `copy` command |
