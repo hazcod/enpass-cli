@@ -55,11 +55,10 @@ func (store *SecureStore) getStoreFile(name string) (*os.File, error) {
 	return storeFile, err
 }
 
-func (store *SecureStore) GeneratePassphrase(pin string, kdfIterCount int) error {
+func (store *SecureStore) GeneratePassphrase(pin string, pepper string, kdfIterCount int) error {
 	store.logger.WithField("kdfIterCount", kdfIterCount).Debug("generating store passphrase from pin")
 	store.kdfIterCount = kdfIterCount
-	pepper := []byte(os.Getenv("ENP_PIN_PEPPER"))
-	data := append([]byte(pin), pepper...)
+	data := append([]byte(pin), []byte(pepper)...)
 	store.passphrase = sha256sum(data)
 	return nil
 }

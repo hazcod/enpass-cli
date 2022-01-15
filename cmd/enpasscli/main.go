@@ -21,7 +21,7 @@ const (
 	// commands
 	cmdVersion = "version"
 	cmdHelp    = "help"
-	cmdInit    = "init"
+	cmdDryRun  = "dryrun"
 	cmdList    = "list"
 	cmdShow    = "show"
 	cmdCopy    = "copy"
@@ -36,7 +36,7 @@ var (
 	// overwritten by go build
 	version = "dev"
 	// set of all commands
-	commands = map[string]struct{}{cmdVersion: {}, cmdHelp: {}, cmdInit: {}, cmdList: {},
+	commands = map[string]struct{}{cmdVersion: {}, cmdHelp: {}, cmdDryRun: {}, cmdList: {},
 		cmdShow: {}, cmdCopy: {}, cmdPass: {}}
 )
 
@@ -158,7 +158,7 @@ func showEntries(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
 }
 
 func copyEntry(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
-	card, err := vault.GetUniqueEntry(*args.cardType, args.filters)
+	card, err := vault.GetEntry(*args.cardType, args.filters, true)
 	if err != nil {
 		logger.WithError(err).Fatal("could not retrieve unique card")
 	}
@@ -179,7 +179,7 @@ func copyEntry(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
 }
 
 func entryPassword(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
-	card, err := vault.GetUniqueEntry(*args.cardType, args.filters)
+	card, err := vault.GetEntry(*args.cardType, args.filters, true)
 	if err != nil {
 		logger.WithError(err).Fatal("could not retrieve unique card")
 	}
@@ -191,39 +191,14 @@ func entryPassword(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
 	}
 }
 
-func assembleVaultAccessData(logger *logrus.Logger, args *Args) (*enpass.VaultAccessData, *pin.SecureStore) {
+func assembleVaultAccessData(logger *logrus.Logger, args *Args, store *pin.SecureStore) *enpass.VaultAccessData {
 	accessData := &enpass.VaultAccessData{
-		Password: os.Getenv("MASTERPW"),
+		Password:    os.Getenv("MASTERPW"),
+		KeyfilePath: *args.keyFilePath,
 	}
 
-	var store *pin.SecureStore
-	if !*args.pinEnable {
-		logger.Debug("PIN disabled")
-	} else if !accessData.IsComplete() {
-		logger.Debug("PIN enabled, using store")
-
-		vaultPath, err := filepath.EvalSymlinks(*args.vaultPath)
-		store, err = pin.NewSecureStore(filepath.Base(vaultPath), logger.Level)
-		if err != nil {
-			logger.WithError(err).Fatal("could not create store")
-		}
-
-		storePin := os.Getenv("ENP_PIN")
-		if storePin == "" {
-			storePin = prompt(logger, args, "PIN")
-		}
-		if len(storePin) < pinMinLength {
-			logger.Fatal("PIN too short")
-		}
-		pinKdfIterCount, err := strconv.ParseInt(os.Getenv("ENP_PIN_ITER_COUNT"), 10, 64)
-		if err != nil {
-			pinKdfIterCount = pinDefaultKdfIterCount
-		}
-		if err := store.GeneratePassphrase(storePin, int(pinKdfIterCount)); err != nil {
-			logger.WithError(err).Fatal("could not initialize store")
-		}
-		logger.Debug("initialized store")
-
+	if !accessData.IsComplete() && store != nil {
+		var err error
 		if accessData.DBKey, err = store.Read(); err != nil {
 			logger.WithError(err).Fatal("could not read access data from store")
 		}
@@ -234,7 +209,36 @@ func assembleVaultAccessData(logger *logrus.Logger, args *Args) (*enpass.VaultAc
 		accessData.Password = prompt(logger, args, "master password")
 	}
 
-	return accessData, store
+	return accessData
+}
+
+func initializeStore(logger *logrus.Logger, args *Args) *pin.SecureStore {
+	vaultPath, err := filepath.EvalSymlinks(*args.vaultPath)
+	store, err := pin.NewSecureStore(filepath.Base(vaultPath), logger.Level)
+	if err != nil {
+		logger.WithError(err).Fatal("could not create store")
+	}
+
+	pin := os.Getenv("ENP_PIN")
+	if pin == "" {
+		pin = prompt(logger, args, "PIN")
+	}
+	if len(pin) < pinMinLength {
+		logger.Fatal("PIN too short")
+	}
+
+	pepper := os.Getenv("ENP_PIN_PEPPER")
+
+	pinKdfIterCount, err := strconv.ParseInt(os.Getenv("ENP_PIN_ITER_COUNT"), 10, 64)
+	if err != nil {
+		pinKdfIterCount = pinDefaultKdfIterCount
+	}
+
+	if err := store.GeneratePassphrase(pin, pepper, int(pinKdfIterCount)); err != nil {
+		logger.WithError(err).Fatal("could not initialize store")
+	}
+
+	return store
 }
 
 func main() {
@@ -270,8 +274,16 @@ func main() {
 		logger.WithError(err).Fatal("could not create vault")
 	}
 
-	accessData, store := assembleVaultAccessData(logger, args)
-	accessData.KeyfilePath = *args.keyFilePath
+	var store *pin.SecureStore
+	if !*args.pinEnable {
+		logger.Debug("PIN disabled")
+	} else {
+		logger.Debug("PIN enabled, using store")
+		store = initializeStore(logger, args)
+		logger.Debug("initialized store")
+	}
+
+	accessData := assembleVaultAccessData(logger, args, store)
 
 	defer func() {
 		vault.Close()
@@ -283,8 +295,8 @@ func main() {
 	logger.Debug("opened vault")
 
 	switch args.command {
-	case cmdInit:
-		logger.Debug("init done") // just init vault and store without doing anything
+	case cmdDryRun:
+		logger.Debug("dry run complete") // just init vault and store without doing anything
 	case cmdList:
 		listEntries(logger, vault, args)
 	case cmdShow:

@@ -64,13 +64,9 @@ func NewVault(vaultPath string, logLevel logrus.Level) (*Vault, error) {
 	vaultPath, _ = filepath.EvalSymlinks(vaultPath)
 	v.databaseFilename = filepath.Join(vaultPath, vaultFileName)
 	v.vaultInfoFilename = filepath.Join(vaultPath, vaultInfoFileName)
-
 	v.logger.Debug("checking provided vault paths")
-	if _, err := os.Stat(v.databaseFilename); os.IsNotExist(err) {
-		return nil, errors.New("vault does not exist: " + v.databaseFilename)
-	}
-	if _, err := os.Stat(v.vaultInfoFilename); os.IsNotExist(err) {
-		return nil, errors.New("vault info file does not exist: " + v.vaultInfoFilename)
+	if err := v.checkPaths(); err != nil {
+		return nil, err
 	}
 
 	v.logger.Debug("loading vault info")
@@ -100,6 +96,18 @@ func (v *Vault) openEncryptedDatabase(path string, dbKey []byte) (err error) {
 	v.db, err = sql.Open("sqlite3", dbName)
 	if err != nil {
 		return errors.Wrap(err, "could not open database")
+	}
+
+	return nil
+}
+
+func (v *Vault) checkPaths() error {
+	if _, err := os.Stat(v.databaseFilename); os.IsNotExist(err) {
+		return errors.New("vault does not exist: " + v.databaseFilename)
+	}
+
+	if _, err := os.Stat(v.vaultInfoFilename); os.IsNotExist(err) {
+		return errors.New("vault info file does not exist: " + v.vaultInfoFilename)
 	}
 
 	return nil
@@ -170,12 +178,11 @@ func (v *Vault) Open(accessData *VaultAccessData) error {
 }
 
 // Close : close the connection to the underlying database. Always call this in the end.
-func (v *Vault) Close() error {
+func (v *Vault) Close() {
 	if v.db != nil {
 		err := v.db.Close()
 		v.logger.WithError(err).Debug("closed vault")
 	}
-	return nil
 }
 
 // GetEntries : return the password entries in the Enpass database.
@@ -242,26 +249,28 @@ func (v *Vault) GetEntries(cardType string, filters []string) ([]Card, error) {
 	return cards, nil
 }
 
-func (v *Vault) GetUniqueEntry(cardType string, filters []string) (*Card, error) {
+func (v *Vault) GetEntry(cardType string, filters []string, unique bool) (*Card, error) {
 	cards, err := v.GetEntries(cardType, filters)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not retrieve cards")
 	}
 
-	if len(cards) == 0 {
-		return nil, errors.New("card not found")
-	}
-
-	var uniqueCard *Card
+	var ret *Card
 	for _, card := range cards {
 		if card.IsTrashed() || card.IsDeleted() {
 			continue
-		} else if uniqueCard == nil {
-			uniqueCard = &card
-		} else {
+		} else if ret == nil {
+			ret = &card
+		} else if unique {
 			return nil, errors.New("multiple cards match that title")
+		} else {
+			break
 		}
 	}
 
-	return uniqueCard, nil
+	if ret == nil {
+		return nil, errors.New("card not found")
+	}
+
+	return ret, nil
 }
