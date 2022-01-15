@@ -213,7 +213,7 @@ func assembleVaultAccessData(logger *logrus.Logger, args *Args, store *unlock.Se
 }
 
 func initializeStore(logger *logrus.Logger, args *Args) *unlock.SecureStore {
-	vaultPath, err := filepath.EvalSymlinks(*args.vaultPath)
+	vaultPath, _ := filepath.EvalSymlinks(*args.vaultPath)
 	store, err := unlock.NewSecureStore(filepath.Base(vaultPath), logger.Level)
 	if err != nil {
 		logger.WithError(err).Fatal("could not create store")

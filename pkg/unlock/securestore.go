@@ -69,7 +69,7 @@ func (store *SecureStore) Read() ([]byte, error) {
 	}
 	store.logger.Debug("reading store data")
 	data, _ := os.ReadFile(store.file.Name())
-	if data == nil || len(data) == 0 {
+	if len(data) == 0 {
 		return nil, nil // nothing to read
 	}
 	store.logger.Debug("decrypting store data")
@@ -80,7 +80,7 @@ func (store *SecureStore) Read() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	store.wasReadSuccessfully = (dbKey != nil && len(dbKey) > 0)
+	store.wasReadSuccessfully = (len(dbKey) > 0)
 	return dbKey, nil
 }
 

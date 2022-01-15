@@ -17,10 +17,10 @@ const (
 	minKdfIterCount = 10000
 )
 
-func generateRandom(bytes int) []byte {
+func generateRandom(bytes int) ([]byte, error) {
 	generated := make([]byte, bytes)
-	rand.Read(generated)
-	return generated
+	_, err := rand.Read(generated)
+	return generated, err
 }
 
 func sha256sum(data []byte) []byte {
@@ -44,13 +44,19 @@ func createCipherGCM(key []byte) (cipher.AEAD, error) {
 }
 
 func encrypt(passphrase []byte, plaintext []byte, kdfIterCount int) ([]byte, error) {
-	salt := generateRandom(bytesSalt)
+	salt, err := generateRandom(bytesSalt)
+	if err != nil {
+		return nil, err
+	}
 	key := deriveKey(passphrase, salt, kdfIterCount)
 	aesgcm, err := createCipherGCM(key)
 	if err != nil {
 		return nil, err
 	}
-	iv := generateRandom(bytesIV)
+	iv, err := generateRandom(bytesIV)
+	if err != nil {
+		return nil, err
+	}
 	ciphertext := aesgcm.Seal(nil, iv, plaintext, nil)
 	data := append(ciphertext, salt...)
 	data = append(iv, data...)
