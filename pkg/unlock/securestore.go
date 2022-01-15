@@ -1,4 +1,4 @@
-package pin
+package unlock
 
 import (
 	"os"

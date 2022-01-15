@@ -12,7 +12,7 @@ import (
 
 	"github.com/hazcod/enpass-cli/pkg/clipboard"
 	"github.com/hazcod/enpass-cli/pkg/enpass"
-	"github.com/hazcod/enpass-cli/pkg/pin"
+	"github.com/hazcod/enpass-cli/pkg/unlock"
 	"github.com/miquella/ask"
 	"github.com/sirupsen/logrus"
 )
@@ -191,7 +191,7 @@ func entryPassword(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
 	}
 }
 
-func assembleVaultAccessData(logger *logrus.Logger, args *Args, store *pin.SecureStore) *enpass.VaultAccessData {
+func assembleVaultAccessData(logger *logrus.Logger, args *Args, store *unlock.SecureStore) *enpass.VaultAccessData {
 	accessData := &enpass.VaultAccessData{
 		Password:    os.Getenv("MASTERPW"),
 		KeyfilePath: *args.keyFilePath,
@@ -212,9 +212,9 @@ func assembleVaultAccessData(logger *logrus.Logger, args *Args, store *pin.Secur
 	return accessData
 }
 
-func initializeStore(logger *logrus.Logger, args *Args) *pin.SecureStore {
+func initializeStore(logger *logrus.Logger, args *Args) *unlock.SecureStore {
 	vaultPath, err := filepath.EvalSymlinks(*args.vaultPath)
-	store, err := pin.NewSecureStore(filepath.Base(vaultPath), logger.Level)
+	store, err := unlock.NewSecureStore(filepath.Base(vaultPath), logger.Level)
 	if err != nil {
 		logger.WithError(err).Fatal("could not create store")
 	}
@@ -274,7 +274,7 @@ func main() {
 		logger.WithError(err).Fatal("could not create vault")
 	}
 
-	var store *pin.SecureStore
+	var store *unlock.SecureStore
 	if !*args.pinEnable {
 		logger.Debug("PIN disabled")
 	} else {
