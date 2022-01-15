@@ -138,7 +138,7 @@ func showEntries(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
 		if card.IsTrashed() && !*args.trashed {
 			continue
 		}
-		password, err := card.Decrypt()
+		decrypted, err := card.Decrypt()
 		if err != nil {
 			logger.WithError(err).Error("could not decrypt " + card.Title)
 			continue
@@ -152,7 +152,7 @@ func showEntries(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
 			card.Title,
 			card.Subtitle,
 			card.Category,
-			password,
+			decrypted,
 		)
 	}
 }
@@ -163,7 +163,7 @@ func copyEntry(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
 		logger.WithError(err).Fatal("could not retrieve unique card")
 	}
 
-	password, err := card.Decrypt()
+	decrypted, err := card.Decrypt()
 	if err != nil {
 		logger.WithError(err).Fatal("could not decrypt card")
 	}
@@ -173,7 +173,7 @@ func copyEntry(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
 		logger.Debug("primary X selection enabled")
 	}
 
-	if err := clipboard.WriteAll(password); err != nil {
+	if err := clipboard.WriteAll(decrypted); err != nil {
 		logger.WithError(err).Fatal("could not copy password to clipboard")
 	}
 }
@@ -184,10 +184,10 @@ func entryPassword(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
 		logger.WithError(err).Fatal("could not retrieve unique card")
 	}
 
-	if password, err := card.Decrypt(); err != nil {
+	if decrypted, err := card.Decrypt(); err != nil {
 		logger.WithError(err).Fatal("could not decrypt card")
 	} else {
-		fmt.Println(password)
+		fmt.Println(decrypted)
 	}
 }
 
