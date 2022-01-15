@@ -191,25 +191,25 @@ func entryPassword(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
 	}
 }
 
-func assembleVaultAccessData(logger *logrus.Logger, args *Args, store *unlock.SecureStore) *enpass.VaultAccessData {
-	accessData := &enpass.VaultAccessData{
+func assembleVaultCredentials(logger *logrus.Logger, args *Args, store *unlock.SecureStore) *enpass.VaultCredentials {
+	credentials := &enpass.VaultCredentials{
 		Password:    os.Getenv("MASTERPW"),
 		KeyfilePath: *args.keyFilePath,
 	}
 
-	if !accessData.IsComplete() && store != nil {
+	if !credentials.IsComplete() && store != nil {
 		var err error
-		if accessData.DBKey, err = store.Read(); err != nil {
-			logger.WithError(err).Fatal("could not read access data from store")
+		if credentials.DBKey, err = store.Read(); err != nil {
+			logger.WithError(err).Fatal("could not read credentials from store")
 		}
-		logger.Debug("read access data from store")
+		logger.Debug("read credentials from store")
 	}
 
-	if !accessData.IsComplete() {
-		accessData.Password = prompt(logger, args, "master password")
+	if !credentials.IsComplete() {
+		credentials.Password = prompt(logger, args, "master password")
 	}
 
-	return accessData
+	return credentials
 }
 
 func initializeStore(logger *logrus.Logger, args *Args) *unlock.SecureStore {
@@ -283,12 +283,12 @@ func main() {
 		logger.Debug("initialized store")
 	}
 
-	accessData := assembleVaultAccessData(logger, args, store)
+	credentials := assembleVaultCredentials(logger, args, store)
 
 	defer func() {
 		vault.Close()
 	}()
-	if err := vault.Open(accessData); err != nil {
+	if err := vault.Open(credentials); err != nil {
 		logger.WithError(err).Error("could not open vault")
 		logger.Exit(2)
 	}
@@ -310,8 +310,8 @@ func main() {
 	}
 
 	if store != nil {
-		if err := store.Write(accessData.DBKey); err != nil {
-			logger.WithError(err).Fatal("failed to write access data to store")
+		if err := store.Write(credentials.DBKey); err != nil {
+			logger.WithError(err).Fatal("failed to write credentials to store")
 		}
 	}
 }

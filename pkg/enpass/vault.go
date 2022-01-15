@@ -42,14 +42,14 @@ type Vault struct {
 	vaultInfo VaultInfo
 }
 
-type VaultAccessData struct {
+type VaultCredentials struct {
 	KeyfilePath string
 	Password    string
 	DBKey       []byte
 }
 
-func (accessData *VaultAccessData) IsComplete() bool {
-	return accessData.Password != "" || accessData.DBKey != nil
+func (credentials *VaultCredentials) IsComplete() bool {
+	return credentials.Password != "" || credentials.DBKey != nil
 }
 
 // NewVault : Create new instance of vault and load vault info
@@ -113,24 +113,24 @@ func (v *Vault) checkPaths() error {
 	return nil
 }
 
-func (v *Vault) generateAndSetDBKey(accessData *VaultAccessData) error {
-	if accessData.DBKey != nil {
+func (v *Vault) generateAndSetDBKey(credentials *VaultCredentials) error {
+	if credentials.DBKey != nil {
 		v.logger.Debug("skipping database key generation, already set")
 		return nil
 	}
 
-	if accessData.Password == "" {
+	if credentials.Password == "" {
 		return errors.New("empty vault password provided")
 	}
 
-	if accessData.KeyfilePath == "" && v.vaultInfo.HasKeyfile == 1 {
+	if credentials.KeyfilePath == "" && v.vaultInfo.HasKeyfile == 1 {
 		return errors.New("you should specify a keyfile")
-	} else if accessData.KeyfilePath != "" && v.vaultInfo.HasKeyfile == 0 {
+	} else if credentials.KeyfilePath != "" && v.vaultInfo.HasKeyfile == 0 {
 		return errors.New("you are specifying an unnecessary keyfile")
 	}
 
 	v.logger.Debug("generating master password")
-	masterPassword, err := v.generateMasterPassword([]byte(accessData.Password), accessData.KeyfilePath)
+	masterPassword, err := v.generateMasterPassword([]byte(credentials.Password), credentials.KeyfilePath)
 	if err != nil {
 		return errors.Wrap(err, "could not generate vault unlock key")
 	}
@@ -142,7 +142,7 @@ func (v *Vault) generateAndSetDBKey(accessData *VaultAccessData) error {
 	}
 
 	v.logger.Debug("deriving decryption key")
-	accessData.DBKey, err = v.deriveKey(masterPassword, keySalt)
+	credentials.DBKey, err = v.deriveKey(masterPassword, keySalt)
 	if err != nil {
 		return errors.Wrap(err, "could not derive database key from master password")
 	}
@@ -151,14 +151,14 @@ func (v *Vault) generateAndSetDBKey(accessData *VaultAccessData) error {
 }
 
 // Open : setup a connection to the Enpass database. Call this before doing anything.
-func (v *Vault) Open(accessData *VaultAccessData) error {
+func (v *Vault) Open(credentials *VaultCredentials) error {
 	v.logger.Debug("generating database key")
-	if err := v.generateAndSetDBKey(accessData); err != nil {
+	if err := v.generateAndSetDBKey(credentials); err != nil {
 		return errors.Wrap(err, "could not generate database key")
 	}
 
 	v.logger.Debug("opening encrypted database")
-	if err := v.openEncryptedDatabase(v.databaseFilename, accessData.DBKey); err != nil {
+	if err := v.openEncryptedDatabase(v.databaseFilename, credentials.DBKey); err != nil {
 		return errors.Wrap(err, "could not open encrypted database")
 	}
 

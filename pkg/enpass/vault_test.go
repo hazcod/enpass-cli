@@ -17,8 +17,8 @@ func TestVault_Initialize(t *testing.T) {
 		t.Errorf("vault initialization failed: %+v", err)
 	}
 	defer vault.Close()
-	accessData := &VaultAccessData{Password: testPassword}
-	if err := vault.Open(accessData); err != nil {
+	credentials := &VaultCredentials{Password: testPassword}
+	if err := vault.Open(credentials); err != nil {
 		t.Errorf("opening vault failed: %+v", err)
 	}
 }
@@ -29,8 +29,8 @@ func TestVault_GetEntries(t *testing.T) {
 		t.Errorf("vault initialization failed: %+v", err)
 	}
 	defer vault.Close()
-	accessData := &VaultAccessData{Password: testPassword}
-	if err := vault.Open(accessData); err != nil {
+	credentials := &VaultCredentials{Password: testPassword}
+	if err := vault.Open(credentials); err != nil {
 		t.Errorf("opening vault failed: %+v", err)
 	}
 
