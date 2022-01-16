@@ -29,7 +29,7 @@ func (v *Vault) loadVaultInfo() (VaultInfo, error) {
 		return VaultInfo{}, errors.Wrap(err, "could not parse vault info")
 	}
 
-	v.Logger.
+	v.logger.
 		WithField("vault_name", vaultInfo.VaultName).
 		WithField("vault_version", vaultInfo.VaultVersion).
 		Debug("vault info loaded")

@@ -24,7 +24,7 @@ const (
 // Vault : vault is the container object for vault-related operations
 type Vault struct {
 	// Logger : the logger instance
-	Logger logrus.Logger
+	logger logrus.Logger
 
 	// vault.enpassdb : SQLCipher database
 	databaseFilename string
@@ -40,6 +40,48 @@ type Vault struct {
 
 	// vault.json : contains info about your vault for synchronizing
 	vaultInfo VaultInfo
+}
+
+type VaultCredentials struct {
+	KeyfilePath string
+	Password    string
+	DBKey       []byte
+}
+
+func (credentials *VaultCredentials) IsComplete() bool {
+	return credentials.Password != "" || credentials.DBKey != nil
+}
+
+// NewVault : Create new instance of vault and load vault info
+func NewVault(vaultPath string, logLevel logrus.Level) (*Vault, error) {
+	v := Vault{logger: *logrus.New()}
+	v.logger.SetLevel(logLevel)
+
+	if vaultPath == "" {
+		return nil, errors.New("empty vault path provided")
+	}
+
+	vaultPath, _ = filepath.EvalSymlinks(vaultPath)
+	v.databaseFilename = filepath.Join(vaultPath, vaultFileName)
+	v.vaultInfoFilename = filepath.Join(vaultPath, vaultInfoFileName)
+	v.logger.Debug("checking provided vault paths")
+	if err := v.checkPaths(); err != nil {
+		return nil, err
+	}
+
+	v.logger.Debug("loading vault info")
+	var err error
+	v.vaultInfo, err = v.loadVaultInfo()
+	if err != nil {
+		return nil, errors.Wrap(err, "could not load vault info")
+	}
+
+	v.logger.
+		WithField("db_path", vaultFileName).
+		WithField("info_path", vaultInfoFileName).
+		Debug("initialized paths")
+
+	return &v, nil
 }
 
 func (v *Vault) openEncryptedDatabase(path string, dbKey []byte) (err error) {
@@ -71,69 +113,57 @@ func (v *Vault) checkPaths() error {
 	return nil
 }
 
-// Initialize : setup a connection to the Enpass database. Call this before doing anything.
-func (v *Vault) Initialize(databasePath string, keyfilePath string, password string) error {
-	if databasePath == "" {
-		return errors.New("empty vault path provided")
+func (v *Vault) generateAndSetDBKey(credentials *VaultCredentials) error {
+	if credentials.DBKey != nil {
+		v.logger.Debug("skipping database key generation, already set")
+		return nil
 	}
 
-	if password == "" {
+	if credentials.Password == "" {
 		return errors.New("empty vault password provided")
 	}
 
-	v.databaseFilename = filepath.Join(databasePath, vaultFileName)
-	v.vaultInfoFilename = filepath.Join(databasePath, vaultInfoFileName)
-
-	v.Logger.Debug("checking provided vault paths")
-	if err := v.checkPaths(); err != nil {
-		return errors.Wrap(err, "invalid vault path provided")
-	}
-
-	v.Logger.Debug("loading vault info")
-	var err error
-	v.vaultInfo, err = v.loadVaultInfo()
-	if err != nil {
-		return errors.Wrap(err, "could not load vault info")
-	}
-
-	v.Logger.
-		WithField("db_path", vaultFileName).
-		WithField("info_path", vaultInfoFileName).
-		Debug("initialized paths")
-
-	if keyfilePath == "" && v.vaultInfo.HasKeyfile == 1 {
+	if credentials.KeyfilePath == "" && v.vaultInfo.HasKeyfile == 1 {
 		return errors.New("you should specify a keyfile")
-	}
-
-	if keyfilePath != "" && v.vaultInfo.HasKeyfile == 0 {
+	} else if credentials.KeyfilePath != "" && v.vaultInfo.HasKeyfile == 0 {
 		return errors.New("you are specifying an unnecessary keyfile")
 	}
 
-	v.Logger.Debug("generating master password")
-	masterPassword, err := v.generateMasterPassword([]byte(password), keyfilePath)
+	v.logger.Debug("generating master password")
+	masterPassword, err := v.generateMasterPassword([]byte(credentials.Password), credentials.KeyfilePath)
 	if err != nil {
 		return errors.Wrap(err, "could not generate vault unlock key")
 	}
 
-	v.Logger.Debug("extracting salt from database")
+	v.logger.Debug("extracting salt from database")
 	keySalt, err := v.extractSalt()
 	if err != nil {
 		return errors.Wrap(err, "could not get master password salt")
 	}
 
-	v.Logger.Debug("deriving decryption key")
-	fullKey, err := v.deriveKey(masterPassword, keySalt)
+	v.logger.Debug("deriving decryption key")
+	credentials.DBKey, err = v.deriveKey(masterPassword, keySalt)
 	if err != nil {
-		return errors.Wrap(err, "could not derive master key from master password")
+		return errors.Wrap(err, "could not derive database key from master password")
 	}
 
-	v.Logger.Debug("opening encrypted database")
-	if err := v.openEncryptedDatabase(v.databaseFilename, fullKey); err != nil {
+	return nil
+}
+
+// Open : setup a connection to the Enpass database. Call this before doing anything.
+func (v *Vault) Open(credentials *VaultCredentials) error {
+	v.logger.Debug("generating database key")
+	if err := v.generateAndSetDBKey(credentials); err != nil {
+		return errors.Wrap(err, "could not generate database key")
+	}
+
+	v.logger.Debug("opening encrypted database")
+	if err := v.openEncryptedDatabase(v.databaseFilename, credentials.DBKey); err != nil {
 		return errors.Wrap(err, "could not open encrypted database")
 	}
 
 	var tableName string
-	err = v.db.QueryRow(`
+	err := v.db.QueryRow(`
 		SELECT name
 		FROM sqlite_master
 		WHERE type='table' AND name='item'
@@ -148,8 +178,11 @@ func (v *Vault) Initialize(databasePath string, keyfilePath string, password str
 }
 
 // Close : close the connection to the underlying database. Always call this in the end.
-func (v *Vault) Close() error {
-	return v.db.Close()
+func (v *Vault) Close() {
+	if v.db != nil {
+		err := v.db.Close()
+		v.logger.WithError(err).Debug("closed vault")
+	}
 }
 
 // GetEntries : return the password entries in the Enpass database.
@@ -216,26 +249,28 @@ func (v *Vault) GetEntries(cardType string, filters []string) ([]Card, error) {
 	return cards, nil
 }
 
-func (v *Vault) GetUniqueEntry(cardType string, filters []string) (*Card, error) {
+func (v *Vault) GetEntry(cardType string, filters []string, unique bool) (*Card, error) {
 	cards, err := v.GetEntries(cardType, filters)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not retrieve cards")
 	}
 
-	if len(cards) == 0 {
-		return nil, errors.New("card not found")
-	}
-
-	var uniqueCard *Card
+	var ret *Card
 	for _, card := range cards {
 		if card.IsTrashed() || card.IsDeleted() {
 			continue
-		} else if uniqueCard == nil {
-			uniqueCard = &card
-		} else {
+		} else if ret == nil {
+			ret = &card
+		} else if unique {
 			return nil, errors.New("multiple cards match that title")
+		} else {
+			break
 		}
 	}
 
-	return uniqueCard, nil
+	if ret == nil {
+		return nil, errors.New("card not found")
+	}
+
+	return ret, nil
 }

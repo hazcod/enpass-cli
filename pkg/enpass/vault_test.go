@@ -1,8 +1,9 @@
 package enpass
 
 import (
-	"github.com/sirupsen/logrus"
 	"testing"
+
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -11,26 +12,26 @@ const (
 )
 
 func TestVault_Initialize(t *testing.T) {
-	vault := Vault{
-		Logger: *logrus.New(),
-	}
-	vault.Logger.SetLevel(logrus.ErrorLevel)
-	defer vault.Close()
-
-	if err := vault.Initialize(vaultPath, "", testPassword); err != nil {
+	vault, err := NewVault(vaultPath, logrus.ErrorLevel)
+	if err != nil {
 		t.Errorf("vault initialization failed: %+v", err)
+	}
+	defer vault.Close()
+	credentials := &VaultCredentials{Password: testPassword}
+	if err := vault.Open(credentials); err != nil {
+		t.Errorf("opening vault failed: %+v", err)
 	}
 }
 
 func TestVault_GetEntries(t *testing.T) {
-	vault := Vault{
-		Logger: *logrus.New(),
-	}
-	vault.Logger.SetLevel(logrus.ErrorLevel)
-	defer vault.Close()
-
-	if err := vault.Initialize(vaultPath, "", testPassword); err != nil {
+	vault, err := NewVault(vaultPath, logrus.ErrorLevel)
+	if err != nil {
 		t.Errorf("vault initialization failed: %+v", err)
+	}
+	defer vault.Close()
+	credentials := &VaultCredentials{Password: testPassword}
+	if err := vault.Open(credentials); err != nil {
+		t.Errorf("opening vault failed: %+v", err)
 	}
 
 	entries, err := vault.GetEntries("password", nil)
