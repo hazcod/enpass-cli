@@ -217,6 +217,8 @@ func (v *Vault) GetEntries(cardType string, filters []string) ([]Card, error) {
 			return nil, errors.Wrap(err, "could not read card from database")
 		}
 
+		card.RawValue = card.value
+
 		// if item has been deleted
 		if card.IsDeleted() {
 			continue

@@ -74,6 +74,7 @@ type Card struct {
 	LastUsed  int64
 	Sensitive bool
 	Icon      string
+	RawValue  string
 
 	// encrypted
 	value   string
