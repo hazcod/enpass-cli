@@ -68,7 +68,11 @@ func (args *Args) parse() {
 	args.clipboardPrimary = flag.Bool("clipboardPrimary", false, "Use primary X selection instead of clipboard for the 'copy' command.")
 	flag.Parse()
 	args.command = strings.ToLower(flag.Arg(0))
-	args.filters = flag.Args()[1:]
+	if len(flag.Args()) > 1 {
+		args.filters = flag.Args()[1:]
+	} else {
+		args.filters = []string{}
+	}
 }
 
 func prompt(logger *logrus.Logger, args *Args, msg string) string {
