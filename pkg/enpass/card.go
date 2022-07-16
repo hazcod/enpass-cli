@@ -4,8 +4,9 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"encoding/hex"
-	"github.com/pkg/errors"
 	"strings"
+
+	"github.com/pkg/errors"
 )
 
 /*
@@ -71,6 +72,9 @@ type Card struct {
 	Category  string
 	Label     string
 	LastUsed  int64
+	Sensitive bool
+	Icon      string
+	RawValue  string
 
 	// encrypted
 	value   string
