@@ -90,6 +90,16 @@ func (c *Card) IsDeleted() bool {
 }
 
 func (c *Card) Decrypt() (string, error) {
+	// Intercept item fields without value
+	if len(c.value) == 0 {
+		return "", nil
+	}
+
+	// Intercept non-password item fields, their value isn't encrypted
+	if c.Type != "password" {
+		return c.value, nil
+	}
+
 	// The key object is saved in binary from and actually consists of the
 	// AES key (32 bytes) and a nonce (12 bytes) for GCM
 	key := c.itemKey[:32]
