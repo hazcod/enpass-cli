@@ -26,6 +26,10 @@ type Vault struct {
 	// Logger : the logger instance
 	logger logrus.Logger
 
+	// settings for filtering entries
+	FilterFields []string
+	FilterAnd    bool
+
 	// vault.enpassdb : SQLCipher database
 	databaseFilename string
 
@@ -54,7 +58,10 @@ func (credentials *VaultCredentials) IsComplete() bool {
 
 // NewVault : Create new instance of vault and load vault info
 func NewVault(vaultPath string, logLevel logrus.Level) (*Vault, error) {
-	v := Vault{logger: *logrus.New()}
+	v := Vault{
+		logger:       *logrus.New(),
+		FilterFields: []string{"title", "subtitle"},
+	}
 	v.logger.SetLevel(logLevel)
 
 	if vaultPath == "" {
@@ -185,20 +192,13 @@ func (v *Vault) Close() {
 	}
 }
 
-// GetEntries : return the password entries in the Enpass database.
+// GetEntries : return the cardType entries in the Enpass database filtered by filters.
 func (v *Vault) GetEntries(cardType string, filters []string) ([]Card, error) {
 	if v.db == nil || v.vaultInfo.VaultName == "" {
 		return nil, errors.New("vault is not initialized")
 	}
 
-	rows, err := v.db.Query(`
-		SELECT uuid, type, created_at, field_updated_at, title,
-		       subtitle, note, trashed, item.deleted, category,
-		       label, value, key, last_used, sensitive, item.icon
-		FROM item
-		INNER JOIN itemfield ON uuid = item_uuid
-	`)
-
+	rows, err := v.executeEntryQuery(cardType, filters)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not retrieve cards from database")
 	}
@@ -218,32 +218,6 @@ func (v *Vault) GetEntries(cardType string, filters []string) ([]Card, error) {
 		}
 
 		card.RawValue = card.value
-
-		// if item has been deleted
-		if card.IsDeleted() {
-			continue
-		}
-
-		// if we specify a type filter
-		if cardType != "" && card.Type != cardType {
-			continue
-		}
-
-		// check any supplied title filters
-		if len(filters) > 0 {
-			found := false
-
-			for _, filter := range filters {
-				if strings.Contains(strings.ToLower(card.Title), strings.ToLower(filter)) {
-					found = true
-					break
-				}
-			}
-
-			if !found {
-				continue
-			}
-		}
 
 		cards = append(cards, card)
 	}
@@ -275,4 +249,43 @@ func (v *Vault) GetEntry(cardType string, filters []string, unique bool) (*Card,
 	}
 
 	return ret, nil
+}
+
+func (v *Vault) executeEntryQuery(cardType string, filters []string) (*sql.Rows, error) {
+	query := `
+		SELECT uuid, type, created_at, field_updated_at, title,
+		       subtitle, note, trashed, item.deleted, category,
+		       label, value, key, last_used, sensitive, item.icon
+		FROM item
+		INNER JOIN itemfield ON uuid = item_uuid
+	`
+
+	where := []string{"item.deleted = ?"}
+	values := []interface{}{0}
+
+	if cardType != "" {
+		where = append(where, "type = ?")
+		values = append(values, cardType)
+	}
+
+	filterWhere := []string{}
+	for _, filter := range filters {
+		fq := "(0"
+		for _, field := range v.FilterFields {
+			fq += " + instr(lower(" + field + "), ?)"
+			values = append(values, strings.ToLower(filter))
+		}
+		fq += " > 0)"
+		filterWhere = append(filterWhere, fq)
+	}
+
+	if v.FilterAnd {
+		where = append(where, filterWhere...)
+	} else if len(filterWhere) > 0 {
+		where = append(where, "("+strings.Join(filterWhere, " OR ")+")")
+	}
+
+	query += " WHERE " + strings.Join(where, " AND ")
+	v.logger.Trace("query: ", query)
+	return v.db.Query(query, values...)
 }

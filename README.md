@@ -48,6 +48,7 @@ Flags
 | `-log=LEVEL` | The log level from debug (5) to error (1) |
 | `-nonInteractive` | Disable prompts and fail instead |
 | `-pin` | Enable Quick Unlock using a PIN |
+| `-and` | Combines filters with AND instead of default OR |
 | `-sort` | Sort the output by title and username of the `list` and `show` command |
 | `-trashed` | Show trashed items in the `list` and `show` command |
 | `-clipboardPrimary` | Use primary X selection instead of clipboard for the `copy` command |
