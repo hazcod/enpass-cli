@@ -53,6 +53,7 @@ type Args struct {
 	pinEnable        *bool
 	sort             *bool
 	trashed          *bool
+	and              *bool
 	clipboardPrimary *bool
 }
 
@@ -63,6 +64,7 @@ func (args *Args) parse() {
 	args.logLevelStr = flag.String("log", defaultLogLevel.String(), "The log level from debug (5) to error (1).")
 	args.nonInteractive = flag.Bool("nonInteractive", false, "Disable prompts and fail instead.")
 	args.pinEnable = flag.Bool("pin", false, "Enable PIN.")
+	args.and = flag.Bool("and", false, "Combines filters with AND instead of default OR.")
 	args.sort = flag.Bool("sort", false, "Sort the output by title and username of the 'list' and 'show' command.")
 	args.trashed = flag.Bool("trashed", false, "Show trashed items in the 'list' and 'show' command.")
 	args.clipboardPrimary = flag.Bool("clipboardPrimary", false, "Use primary X selection instead of clipboard for the 'copy' command.")
@@ -278,6 +280,7 @@ func main() {
 	if err != nil {
 		logger.WithError(err).Fatal("could not create vault")
 	}
+	vault.FilterAnd = *args.and
 
 	var store *unlock.SecureStore
 	if !*args.pinEnable {
