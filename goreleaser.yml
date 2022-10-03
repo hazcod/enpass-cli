@@ -22,6 +22,7 @@ builds:
       - darwin
     goarch:
       - amd64
+      - arm64
     env:
       - CC=o64-clang
       - CXX=o64-clang++

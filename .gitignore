@@ -5,3 +5,4 @@ vendor
 .release-env
 .semrel/
 .generated-go-semantic-release-changelog.md
+.vscode/
