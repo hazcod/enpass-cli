@@ -213,7 +213,7 @@ func assembleVaultCredentials(logger *logrus.Logger, args *Args, store *unlock.S
 	}
 
 	if !credentials.IsComplete() {
-		credentials.Password = prompt(logger, args, "master password")
+		credentials.Password = prompt(logger, args, "vault password")
 	}
 
 	return credentials
