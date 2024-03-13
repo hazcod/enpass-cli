@@ -20,7 +20,6 @@ jobs:
         with:
           go-version: ${{ steps.vars.outputs.go_version }}
       -
-      -
         name: Download Go modules
         run: go mod download
       -

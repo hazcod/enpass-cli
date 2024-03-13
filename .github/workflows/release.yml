@@ -24,7 +24,6 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ steps.vars.outputs.go_version }}
-      -
       - name: release dry run
         run: make release-dry-run
       - uses: go-semantic-release/action@v1
