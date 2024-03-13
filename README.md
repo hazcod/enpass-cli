@@ -53,6 +53,17 @@ Flags
 | `-trashed` | Show trashed items in the `list` and `show` command |
 | `-clipboardPrimary` | Use primary X selection instead of clipboard for the `copy` command |
 
+Development
+-----
+```shell
+# to run it from code
+% go run ./cmd/... -vault=foo list
+
+# to build it yourself
+% make build
+% ./enpass-cli -vault=foo list
+```
+
 Testing Code
 -------
 ```shell

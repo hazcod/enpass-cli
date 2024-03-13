@@ -4,6 +4,9 @@ GOLANG_CROSS_VERSION  ?= v1.17.6
 SYSROOT_DIR     ?= sysroots
 SYSROOT_ARCHIVE ?= sysroots.tar.bz2
 
+build:
+	go build -o enpass-cli ./cmd/...
+
 .PHONY: sysroot-pack
 sysroot-pack:
 	@tar cf - $(SYSROOT_DIR) -P | pv -s $[$(du -sk $(SYSROOT_DIR) | awk '{print $1}') * 1024] | pbzip2 > $(SYSROOT_ARCHIVE)
