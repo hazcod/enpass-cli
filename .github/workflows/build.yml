@@ -11,13 +11,15 @@ jobs:
       -
         id: vars
         run: |
-          echo ::set-output name=go_version::$(grep '^FROM go' .github/go/Dockerfile | cut -d ' ' -f 2 | cut -d ':' -f 2)
-          echo "Using Go version ${{ steps.vars.outputs.go_version }}"
+          goVersion=$(grep '^FROM go' .github/go/Dockerfile | cut -d ' ' -f 2 | cut -d ':' -f 2)
+          echo "go_version=${goVersion}" >> $GITHUB_OUTPUT
+          echo "Using Go version ${goVersion}"
       -
-        name: Setup go
-        uses: actions/setup-go@v2
+        name: Set up Go
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ steps.vars.outputs.go_version }}
+      -
       -
         name: Download Go modules
         run: go mod download
