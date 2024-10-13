@@ -10,10 +10,12 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gdamore/tcell/v2"
 	"github.com/hazcod/enpass-cli/pkg/clipboard"
 	"github.com/hazcod/enpass-cli/pkg/enpass"
 	"github.com/hazcod/enpass-cli/pkg/unlock"
 	"github.com/miquella/ask"
+	"github.com/rivo/tview"
 	"github.com/sirupsen/logrus"
 )
 
@@ -26,6 +28,8 @@ const (
 	cmdShow    = "show"
 	cmdCopy    = "copy"
 	cmdPass    = "pass"
+	cmdUi      = "ui"
+
 	// defaults
 	defaultLogLevel        = logrus.InfoLevel
 	pinMinLength           = 8
@@ -36,8 +40,10 @@ var (
 	// overwritten by go build
 	version = "dev"
 	// set of all commands
-	commands = map[string]struct{}{cmdVersion: {}, cmdHelp: {}, cmdDryRun: {}, cmdList: {},
-		cmdShow: {}, cmdCopy: {}, cmdPass: {}}
+	commands = map[string]struct{}{
+		cmdVersion: {}, cmdHelp: {}, cmdDryRun: {}, cmdList: {},
+		cmdShow: {}, cmdCopy: {}, cmdPass: {}, cmdUi: {},
+	}
 )
 
 type Args struct {
@@ -198,6 +204,93 @@ func entryPassword(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
 	}
 }
 
+func ui(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
+	cards, err := vault.GetEntries(*args.cardType, args.filters)
+	if err != nil {
+		logger.WithError(err).Fatal("could not retrieve cards")
+	}
+	if *args.sort {
+		sortEntries(cards)
+	}
+
+	app := tview.NewApplication()
+	flex := tview.NewFlex().SetDirection(tview.FlexRow)
+	table := tview.NewTable().SetBorders(false)
+	flex.AddItem(table, 0, 1, true)
+
+	var visibleCards []enpass.Card
+	render := func(filter string) {
+		filter = strings.ToLower(filter)
+		visibleCards = []enpass.Card{}
+
+		table.Clear()
+		table.SetCell(0, 0, tview.NewTableCell("Title").SetBackgroundColor(tcell.ColorGray))
+		table.SetCell(0, 1, tview.NewTableCell("Subtitle").SetBackgroundColor(tcell.ColorGray))
+		table.SetCell(0, 2, tview.NewTableCell("Category").SetBackgroundColor(tcell.ColorGray))
+
+		i := 0
+		for _, card := range cards {
+			if card.IsTrashed() && !*args.trashed {
+				continue
+			}
+			if !strings.Contains(strings.ToLower(card.Title+" "+card.Subtitle), filter) {
+				continue
+			}
+
+			table.SetCell(i+1, 0, tview.NewTableCell(card.Title))
+			table.SetCell(i+1, 1, tview.NewTableCell(card.Subtitle))
+			table.SetCell(i+1, 2, tview.NewTableCell(card.Category))
+			i += 1
+			visibleCards = append(visibleCards, card)
+		}
+	}
+	render("") // render ininital table without filter
+
+	statusText := tview.NewTextView().SetChangedFunc(func() {
+		app.Draw()
+	})
+
+	inputField := tview.NewInputField()
+	inputField.SetLabel("Search: ").
+		SetFieldWidth(30).
+		SetDoneFunc(func(key tcell.Key) {
+			render(inputField.GetText())
+			app.SetFocus(table)
+			statusText.SetText(fmt.Sprintf("found %d", len(visibleCards)))
+		})
+
+	status := tview.NewFlex()
+	status.AddItem(inputField, 0, 1, false)
+	status.AddItem(statusText, 0, 1, false)
+	flex.AddItem(status, 1, 1, false)
+
+	table.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Rune() == '/' {
+			app.SetFocus(inputField)
+		}
+		return event
+	})
+
+	table.Select(0, 0).SetFixed(1, 1)
+	table.SetSelectable(true, false)
+	table.SetSelectedFunc(func(row int, column int) {
+		card := visibleCards[row-1]
+		if decrypted, err := card.Decrypt(); err != nil {
+			logger.WithError(err).Fatal("could not decrypt card")
+		} else {
+			if err := clipboard.WriteAll(decrypted); err != nil {
+				logger.WithError(err).Fatal("could not copy password to clipboard")
+			} else {
+				statusText.SetText("copied password for " + card.Title)
+			}
+		}
+	})
+
+	if err := app.SetRoot(flex, true).SetFocus(inputField).Run(); err != nil {
+		panic(err)
+	}
+}
+
 func assembleVaultCredentials(logger *logrus.Logger, args *Args, store *unlock.SecureStore) *enpass.VaultCredentials {
 	credentials := &enpass.VaultCredentials{
 		Password:    os.Getenv("MASTERPW"),
@@ -313,6 +406,8 @@ func main() {
 		copyEntry(logger, vault, args)
 	case cmdPass:
 		entryPassword(logger, vault, args)
+	case cmdUi:
+		ui(logger, vault, args)
 	default:
 		logger.WithField("command", args.command).Fatal("unknown command")
 	}
