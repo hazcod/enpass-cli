@@ -130,10 +130,12 @@ func listEntries(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
 		logger.Printf(
 			"> title: %s"+
 				"  login: %s"+
-				"  cat.: %s",
+				"  cat.: %s"+
+				"  label: %s",
 			card.Title,
 			card.Subtitle,
 			card.Category,
+			card.Label,
 		)
 	}
 }
@@ -160,10 +162,12 @@ func showEntries(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
 			"> title: %s"+
 				"  login: %s"+
 				"  cat.: %s"+
+				"  label: %s"+
 				"  %s: %s",
 			card.Title,
 			card.Subtitle,
 			card.Category,
+			card.Label,
 			card.Type,
 			decrypted,
 		)
