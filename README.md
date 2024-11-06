@@ -22,7 +22,7 @@ $ enp show enpass.com
 $ # copy password of 'reddit.com' entry to clipboard
 $ enp copy reddit.com
 
-$ # print password of 'github.com' to stdout, useful for scripting 
+$ # print password of 'github.com' to stdout, useful for scripting
 $ password=$(enp pass github.com)
 ```
 
@@ -47,6 +47,7 @@ Flags
 | `-type=TYPE` | The type of your card (password, ...) |
 | `-log=LEVEL` | The log level from debug (5) to error (1) |
 | `-nonInteractive` | Disable prompts and fail instead |
+| `-json` | Output as JSON to stdout |
 | `-pin` | Enable Quick Unlock using a PIN |
 | `-and` | Combines filters with AND instead of default OR |
 | `-sort` | Sort the output by title and username of the `list` and `show` command |
