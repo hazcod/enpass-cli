@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -55,6 +56,7 @@ type Args struct {
 	cardType         *string
 	keyFilePath      *string
 	logLevelStr      *string
+	jsonOutput       *bool
 	nonInteractive   *bool
 	pinEnable        *bool
 	sort             *bool
@@ -68,6 +70,7 @@ func (args *Args) parse() {
 	args.cardType = flag.String("type", "password", "The type of your card. (password, ...)")
 	args.keyFilePath = flag.String("keyfile", "", "Path to your Enpass vault keyfile.")
 	args.logLevelStr = flag.String("log", defaultLogLevel.String(), "The log level from debug (5) to error (1).")
+	args.jsonOutput = flag.Bool("json", false, "Output data in JSON format.")
 	args.nonInteractive = flag.Bool("nonInteractive", false, "Disable prompts and fail instead.")
 	args.pinEnable = flag.Bool("pin", false, "Enable PIN.")
 	args.and = flag.Bool("and", false, "Combines filters with AND instead of default OR.")
@@ -123,21 +126,13 @@ func listEntries(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
 	if *args.sort {
 		sortEntries(cards)
 	}
-	for _, card := range cards {
-		if card.IsTrashed() && !*args.trashed {
-			continue
-		}
-		logger.Printf(
-			"> title: %s"+
-				"  login: %s"+
-				"  cat.: %s"+
-				"  label: %s",
-			card.Title,
-			card.Subtitle,
-			card.Category,
-			card.Label,
-		)
+
+	data, err := prepareCardData(cards, false, args)
+	if err != nil {
+		logger.WithError(err).Fatal(err.Error())
 	}
+
+	outputDataOrLog(logger, data, args)
 }
 
 func showEntries(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
@@ -148,29 +143,60 @@ func showEntries(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
 	if *args.sort {
 		sortEntries(cards)
 	}
+
+	data, err := prepareCardData(cards, true, args)
+	if err != nil {
+		logger.WithError(err).Fatal(err.Error())
+	}
+
+	outputDataOrLog(logger, data, args)
+}
+
+func prepareCardData(cards []enpass.Card, includeDecrypted bool, args *Args) ([]map[string]string, error) {
+	data := make([]map[string]string, 0)
 	for _, card := range cards {
 		if card.IsTrashed() && !*args.trashed {
 			continue
 		}
-		decrypted, err := card.Decrypt()
-		if err != nil {
-			logger.WithError(err).Error("could not decrypt " + card.Title)
-			continue
+
+		cardMap := map[string]string{
+			"title":    card.Title,
+			"login":    card.Subtitle,
+			"category": card.Category,
+			"label":    card.Label,
+			"type":     card.Type,
 		}
 
-		logger.Printf(
-			"> title: %s"+
-				"  login: %s"+
-				"  cat.: %s"+
-				"  label: %s"+
-				"  %s: %s",
-			card.Title,
-			card.Subtitle,
-			card.Category,
-			card.Label,
-			card.Type,
-			decrypted,
-		)
+		if includeDecrypted {
+			decrypted, err := card.Decrypt()
+			if err != nil {
+				return nil, fmt.Errorf("could not decrypt %s: %w", card.Title, err)
+			}
+			cardMap["password"] = decrypted
+		}
+
+		data = append(data, cardMap)
+	}
+	return data, nil
+}
+
+func outputDataOrLog(logger *logrus.Logger, data []map[string]string, args *Args) {
+	if *args.jsonOutput {
+		jsonData, jsonErr := json.Marshal(data)
+		if jsonErr != nil {
+			logger.WithError(jsonErr).Fatal("could not marshal JSON data")
+		}
+		fmt.Println(string(jsonData))
+	} else {
+		for _, card := range data {
+			logger.Printf(
+				"> title: %s  login: %s  cat.: %s  label: %s",
+				card["title"],
+				card["login"],
+				card["category"],
+				card["label"],
+			)
+		}
 	}
 }
 
