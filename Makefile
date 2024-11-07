@@ -1,5 +1,5 @@
 PACKAGE_NAME          := github.com/hazcod/enpass-cli
-GOLANG_CROSS_VERSION  ?= v1.17.6
+GOLANG_CROSS_VERSION  ?= v1.23.2-0
 
 SYSROOT_DIR     ?= sysroots
 SYSROOT_ARCHIVE ?= sysroots.tar.bz2

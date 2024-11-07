@@ -1,6 +1,6 @@
 module github.com/hazcod/enpass-cli
 
-go 1.17
+go 1.23
 
 require (
 	github.com/atotto/clipboard v0.1.4
