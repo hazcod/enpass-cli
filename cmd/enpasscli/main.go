@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -30,6 +31,11 @@ const (
 	cmdCopy    = "copy"
 	cmdPass    = "pass"
 	cmdUi      = "ui"
+	cmdCreate  = "create"
+	cmdEdit    = "edit"
+	cmdTrash   = "trash"
+	cmdRestore = "restore"
+	cmdDelete  = "delete"
 
 	// defaults
 	defaultLogLevel        = logrus.InfoLevel
@@ -44,6 +50,7 @@ var (
 	commands = map[string]struct{}{
 		cmdVersion: {}, cmdHelp: {}, cmdDryRun: {}, cmdList: {},
 		cmdShow: {}, cmdCopy: {}, cmdPass: {}, cmdUi: {},
+		cmdCreate: {}, cmdEdit: {}, cmdTrash: {}, cmdRestore: {}, cmdDelete: {},
 	}
 )
 
@@ -63,6 +70,14 @@ type Args struct {
 	trashed          *bool
 	and              *bool
 	clipboardPrimary *bool
+	// write command flags
+	title    *string
+	login    *string
+	password *string
+	url      *string
+	notes    *string
+	category *string
+	force    *bool
 }
 
 func (args *Args) parse() {
@@ -77,6 +92,14 @@ func (args *Args) parse() {
 	args.sort = flag.Bool("sort", false, "Sort the output by title and username of the 'list' and 'show' command.")
 	args.trashed = flag.Bool("trashed", false, "Show trashed items in the 'list' and 'show' command.")
 	args.clipboardPrimary = flag.Bool("clipboardPrimary", false, "Use primary X selection instead of clipboard for the 'copy' command.")
+	// write command flags
+	args.title = flag.String("title", "", "Entry title (for create/edit).")
+	args.login = flag.String("login", "", "Username or email (for create/edit).")
+	args.password = flag.String("password", "", "Password (for create/edit). Prompts if flag present without value.")
+	args.url = flag.String("url", "", "URL (for create/edit).")
+	args.notes = flag.String("notes", "", "Notes (for create/edit).")
+	args.category = flag.String("category", "", "Category (for create/edit).")
+	args.force = flag.Bool("force", false, "Skip confirmation prompts.")
 	flag.Parse()
 	args.command = strings.ToLower(flag.Arg(0))
 	if len(flag.Args()) > 1 {
@@ -98,13 +121,25 @@ func prompt(logger *logrus.Logger, args *Args, msg string) string {
 }
 
 func printHelp() {
-	fmt.Print("Valid commands: ")
-	for cmd := range commands {
-		fmt.Printf("%s, ", cmd)
-	}
+	fmt.Println("Usage: enpass-cli [flags] <command> [filters...]")
 	fmt.Println()
+	fmt.Println("Commands:")
+	fmt.Println("  list [filter]     List entries (without passwords)")
+	fmt.Println("  show [filter]     Show entries (with passwords)")
+	fmt.Println("  copy <filter>     Copy password to clipboard")
+	fmt.Println("  pass <filter>     Print password to stdout")
+	fmt.Println("  ui                Interactive terminal UI")
+	fmt.Println("  create            Create a new entry")
+	fmt.Println("  edit <filter>     Edit an existing entry")
+	fmt.Println("  trash <filter>    Move entry to trash")
+	fmt.Println("  restore <filter>  Restore entry from trash")
+	fmt.Println("  delete <filter>   Permanently delete entry")
+	fmt.Println("  dryrun            Test vault opening")
+	fmt.Println("  version           Print version")
+	fmt.Println("  help              Print this help")
+	fmt.Println()
+	fmt.Println("Flags:")
 	flag.Usage()
-	os.Exit(1)
 }
 
 func sortEntries(cards []enpass.Card) {
@@ -371,6 +406,205 @@ func initializeStore(logger *logrus.Logger, args *Args) *unlock.SecureStore {
 	return store
 }
 
+func createEntry(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
+	entry := &enpass.EntryData{
+		Title:    *args.title,
+		Username: *args.login,
+		Password: *args.password,
+		URL:      *args.url,
+		Notes:    *args.notes,
+		Category: *args.category,
+	}
+
+	// Prompt for required fields if not provided
+	if entry.Title == "" {
+		entry.Title = promptText(logger, args, "title")
+		if entry.Title == "" {
+			logger.Fatal("title is required")
+		}
+	}
+
+	// Prompt for password if flag was not provided
+	if *args.password == "" {
+		entry.Password = prompt(logger, args, "password")
+	}
+
+	uuid, err := vault.CreateEntry(entry)
+	if err != nil {
+		logger.WithError(err).Fatal("could not create entry")
+	}
+
+	logger.Printf("Created entry: %s (UUID: %s)", entry.Title, uuid)
+}
+
+func editEntry(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
+	card, err := vault.GetEntry(*args.cardType, args.filters, true)
+	if err != nil {
+		logger.WithError(err).Fatal("could not find unique entry to edit")
+	}
+
+	updates := &enpass.EntryData{
+		Title:    *args.title,
+		Username: *args.login,
+		URL:      *args.url,
+		Notes:    *args.notes,
+		Category: *args.category,
+	}
+
+	// Handle password - prompt if flag was passed but empty
+	if isFlagPassed("password") && *args.password == "" {
+		updates.Password = prompt(logger, args, "new password")
+	} else {
+		updates.Password = *args.password
+	}
+
+	// Confirm if changing password
+	if updates.Password != "" && !*args.force {
+		if !confirm(logger, args, fmt.Sprintf("Update password for '%s'?", card.Title)) {
+			logger.Info("cancelled")
+			return
+		}
+	}
+
+	if err := vault.UpdateEntry(card.UUID, updates); err != nil {
+		logger.WithError(err).Fatal("could not update entry")
+	}
+
+	logger.Printf("Updated entry: %s", card.Title)
+}
+
+func trashEntry(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
+	card, err := vault.GetEntry(*args.cardType, args.filters, true)
+	if err != nil {
+		logger.WithError(err).Fatal("could not find unique entry to trash")
+	}
+
+	if !*args.force {
+		if !confirm(logger, args, fmt.Sprintf("Move '%s' to trash?", card.Title)) {
+			logger.Info("cancelled")
+			return
+		}
+	}
+
+	if err := vault.TrashEntry(card.UUID); err != nil {
+		logger.WithError(err).Fatal("could not trash entry")
+	}
+
+	logger.Printf("Moved to trash: %s", card.Title)
+}
+
+func restoreEntry(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
+	// For restore, we need to look in trashed items
+	vault.FilterAnd = *args.and
+	cards, err := vault.GetEntries(*args.cardType, args.filters)
+	if err != nil {
+		logger.WithError(err).Fatal("could not retrieve entries")
+	}
+
+	// Find trashed entry matching filter
+	var card *enpass.Card
+	for _, c := range cards {
+		if c.IsTrashed() && !c.IsDeleted() {
+			if card != nil {
+				logger.Fatal("multiple trashed entries match that filter")
+			}
+			card = &c
+		}
+	}
+
+	if card == nil {
+		logger.Fatal("no trashed entry found matching filter")
+	}
+
+	if !*args.force {
+		if !confirm(logger, args, fmt.Sprintf("Restore '%s' from trash?", card.Title)) {
+			logger.Info("cancelled")
+			return
+		}
+	}
+
+	if err := vault.RestoreEntry(card.UUID); err != nil {
+		logger.WithError(err).Fatal("could not restore entry")
+	}
+
+	logger.Printf("Restored: %s", card.Title)
+}
+
+func deleteEntry(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
+	// For delete, we need to look in trashed items
+	vault.FilterAnd = *args.and
+	cards, err := vault.GetEntries(*args.cardType, args.filters)
+	if err != nil {
+		logger.WithError(err).Fatal("could not retrieve entries")
+	}
+
+	// Find trashed entry matching filter
+	var card *enpass.Card
+	for _, c := range cards {
+		if c.IsTrashed() && !c.IsDeleted() {
+			if card != nil {
+				logger.Fatal("multiple trashed entries match that filter")
+			}
+			card = &c
+		}
+	}
+
+	if card == nil {
+		if !*args.force {
+			logger.Fatal("no trashed entry found - use 'trash' first or --force to delete directly")
+		}
+		// With --force, allow deleting non-trashed entries
+		entry, err := vault.GetEntry(*args.cardType, args.filters, true)
+		if err != nil {
+			logger.WithError(err).Fatal("could not find entry to delete")
+		}
+		card = entry
+	}
+
+	if !*args.force {
+		if !confirm(logger, args, fmt.Sprintf("PERMANENTLY delete '%s'? This cannot be undone!", card.Title)) {
+			logger.Info("cancelled")
+			return
+		}
+	}
+
+	if err := vault.DeleteEntry(card.UUID); err != nil {
+		logger.WithError(err).Fatal("could not delete entry")
+	}
+
+	logger.Printf("Permanently deleted: %s", card.Title)
+}
+
+func promptText(logger *logrus.Logger, args *Args, msg string) string {
+	if *args.nonInteractive {
+		return ""
+	}
+	fmt.Printf("Enter %s: ", msg)
+	reader := bufio.NewReader(os.Stdin)
+	response, _ := reader.ReadString('\n')
+	return strings.TrimSpace(response)
+}
+
+func confirm(logger *logrus.Logger, args *Args, msg string) bool {
+	if *args.nonInteractive {
+		return false
+	}
+	fmt.Printf("%s [y/N]: ", msg)
+	var response string
+	fmt.Scanln(&response)
+	return strings.ToLower(response) == "y" || strings.ToLower(response) == "yes"
+}
+
+func isFlagPassed(name string) bool {
+	found := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			found = true
+		}
+	})
+	return found
+}
+
 func main() {
 	args := &Args{}
 	args.parse()
@@ -438,6 +672,16 @@ func main() {
 		entryPassword(logger, vault, args)
 	case cmdUi:
 		ui(logger, vault, args)
+	case cmdCreate:
+		createEntry(logger, vault, args)
+	case cmdEdit:
+		editEntry(logger, vault, args)
+	case cmdTrash:
+		trashEntry(logger, vault, args)
+	case cmdRestore:
+		restoreEntry(logger, vault, args)
+	case cmdDelete:
+		deleteEntry(logger, vault, args)
 	default:
 		logger.WithField("command", args.command).Fatal("unknown command")
 	}
