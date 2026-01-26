@@ -1,3 +1,5 @@
+version: 2
+
 before:
   hooks:
   - go mod download
@@ -11,11 +13,23 @@ builds:
     goarch:
       - amd64
     env:
-      - CC=gcc
-      - CXX=g++
+      - CC=x86_64-linux-gnu-gcc
+      - CXX=x86_64-linux-gnu-g++
     ldflags:
       - -s -w -X main.version={{.Version}}
-  - id: darwin64
+  - id: linux-arm64
+    main: ./cmd/enpasscli/main.go
+    binary: enpasscli
+    goos:
+      - linux
+    goarch:
+      - arm64
+    env:
+      - CC=aarch64-linux-gnu-gcc
+      - CXX=aarch64-linux-gnu-g++
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+  - id: darwin
     main: ./cmd/enpasscli/main.go
     binary: enpasscli
     goos:
@@ -42,19 +56,20 @@ builds:
       - CXX=arm-linux-gnueabihf-g++
     ldflags:
       - -s -w -X main.version={{.Version}}
+
 archives:
   - id: enpass-cli
-    builds:
-      - darwin64
-      - linux64
-      - linux-armhf
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    format: zip
+    formats:
+      - zip
     wrap_in_directory: true
+
 checksum:
   name_template: 'checksums.txt'
+
 snapshot:
-  name_template: "{{ .Tag }}"
+  version_template: "{{ .Tag }}"
+
 changelog:
   sort: asc
   filters:

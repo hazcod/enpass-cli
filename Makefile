@@ -26,7 +26,7 @@ release-dry-run:
 		-v `pwd`/sysroot:/sysroot \
 		-w /go/src/$(PACKAGE_NAME) \
 		ghcr.io/goreleaser/goreleaser-cross:${GOLANG_CROSS_VERSION} \
-		--clean --skip=publish,validate
+		--config .github/goreleaser.yml --clean --skip=publish,validate
 
 .PHONY: release
 release:
@@ -44,4 +44,4 @@ release:
 		-v `pwd`/sysroot:/sysroot \
 		-w /go/src/$(PACKAGE_NAME) \
 		ghcr.io/goreleaser/goreleaser-cross:${GOLANG_CROSS_VERSION} \
-		release --clean
+		--config .github/goreleaser.yml release --clean

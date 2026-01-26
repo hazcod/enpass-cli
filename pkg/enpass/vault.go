@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	// sqlcipher is necessary for sqlite crypto support
-	_ "github.com/mutecomm/go-sqlcipher"
+	_ "github.com/mutecomm/go-sqlcipher/v4"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
@@ -94,18 +94,37 @@ func NewVault(vaultPath string, logLevel logrus.Level) (*Vault, error) {
 func (v *Vault) openEncryptedDatabase(path string, dbKey []byte) (err error) {
 	// The raw key for the sqlcipher database is given
 	// by the first 64 characters of the hex-encoded key
-	dbName := fmt.Sprintf(
-		"%s?_pragma_key=x'%s'&_pragma_cipher_compatibility=3",
-		path,
-		hex.EncodeToString(dbKey)[:masterKeyLength],
-	)
+	hexKey := hex.EncodeToString(dbKey)[:masterKeyLength]
 
-	v.db, err = sql.Open("sqlite3", dbName)
-	if err != nil {
-		return errors.Wrap(err, "could not open database")
+	// Try SQLCipher v4 first (Enpass 6.8+), then fall back to v3 for older databases
+	for _, cipherVersion := range []int{4, 3} {
+		dbName := fmt.Sprintf(
+			"%s?_pragma_key=x'%s'&_pragma_cipher_compatibility=%d",
+			path,
+			hexKey,
+			cipherVersion,
+		)
+
+		v.db, err = sql.Open("sqlite3", dbName)
+		if err != nil {
+			v.logger.WithError(err).WithField("cipher_version", cipherVersion).Debug("could not open database")
+			continue
+		}
+
+		// Verify the database can actually be read (key/version is correct)
+		var testResult int
+		if err = v.db.QueryRow("SELECT count(*) FROM sqlite_master").Scan(&testResult); err != nil {
+			v.logger.WithError(err).WithField("cipher_version", cipherVersion).Debug("could not query database")
+			_ = v.db.Close()
+			v.db = nil
+			continue
+		}
+
+		v.logger.WithField("cipher_version", cipherVersion).Debug("successfully opened database")
+		return nil
 	}
 
-	return nil
+	return errors.New("could not open database: invalid password or unsupported database version")
 }
 
 func (v *Vault) checkPaths() error {
