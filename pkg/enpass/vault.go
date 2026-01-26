@@ -224,6 +224,7 @@ func (v *Vault) GetEntries(cardType string, filters []string) ([]Card, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "could not retrieve cards from database")
 	}
+	defer rows.Close()
 
 	// Use a map to deduplicate cards by UUID, keeping the sensitive field (password)
 	cardMap := make(map[string]Card)
@@ -252,6 +253,10 @@ func (v *Vault) GetEntries(cardType string, filters []string) ([]Card, error) {
 		} else {
 			cardMap[card.UUID] = card
 		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, errors.Wrap(err, "error iterating database rows")
 	}
 
 	// Convert map to slice

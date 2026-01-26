@@ -3,8 +3,9 @@ package enpass
 import (
 	"encoding/hex"
 	"encoding/xml"
+	"os"
+
 	"github.com/pkg/errors"
-	"io/ioutil"
 )
 
 type Keyfile struct {
@@ -12,7 +13,7 @@ type Keyfile struct {
 }
 
 func loadKeyFilePassword(path string) ([]byte, error) {
-	bytes, err := ioutil.ReadFile(path)
+	bytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not load keyfile")
 	}

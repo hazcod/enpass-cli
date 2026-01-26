@@ -2,7 +2,7 @@ package enpass
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 
 	"github.com/pkg/errors"
 )
@@ -19,7 +19,7 @@ type VaultInfo struct {
 
 // loadVaultInfo : the vault info file dictates how we should decrypt the vault database
 func (v *Vault) loadVaultInfo() (VaultInfo, error) {
-	vaultInfoBytes, err := ioutil.ReadFile(v.vaultInfoFilename)
+	vaultInfoBytes, err := os.ReadFile(v.vaultInfoFilename)
 	if err != nil {
 		return VaultInfo{}, errors.Wrap(err, "could not read vault info")
 	}
