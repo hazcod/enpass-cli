@@ -193,6 +193,9 @@ func (v *Vault) Close() {
 }
 
 // GetEntries : return the cardType entries in the Enpass database filtered by filters.
+// Note: Each item in Enpass can have multiple fields (e.g., email accounts have
+// login, incoming server, outgoing server fields). This function deduplicates
+// by UUID, preferring the sensitive field (typically the password).
 func (v *Vault) GetEntries(cardType string, filters []string) ([]Card, error) {
 	if v.db == nil || v.vaultInfo.VaultName == "" {
 		return nil, errors.New("vault is not initialized")
@@ -203,7 +206,8 @@ func (v *Vault) GetEntries(cardType string, filters []string) ([]Card, error) {
 		return nil, errors.Wrap(err, "could not retrieve cards from database")
 	}
 
-	var cards []Card
+	// Use a map to deduplicate cards by UUID, keeping the sensitive field (password)
+	cardMap := make(map[string]Card)
 
 	for rows.Next() {
 		var card Card
@@ -219,6 +223,21 @@ func (v *Vault) GetEntries(cardType string, filters []string) ([]Card, error) {
 
 		card.RawValue = card.value
 
+		// Deduplicate by UUID: prefer sensitive fields (passwords) over non-sensitive ones
+		if existing, found := cardMap[card.UUID]; found {
+			// Keep the new card if it's sensitive and the existing one isn't
+			if card.Sensitive && !existing.Sensitive {
+				cardMap[card.UUID] = card
+			}
+			// Otherwise keep the existing card
+		} else {
+			cardMap[card.UUID] = card
+		}
+	}
+
+	// Convert map to slice
+	cards := make([]Card, 0, len(cardMap))
+	for _, card := range cardMap {
 		cards = append(cards, card)
 	}
 
