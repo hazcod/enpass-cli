@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	// sqlcipher is necessary for sqlite crypto support
-	_ "github.com/mutecomm/go-sqlcipher/v4"
+	_ "github.com/mutecomm/go-sqlcipher"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )

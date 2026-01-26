@@ -24,6 +24,21 @@ $ enp copy reddit.com
 
 $ # print password of 'github.com' to stdout, useful for scripting
 $ password=$(enp pass github.com)
+
+$ # create a new entry
+$ enp create -title="My Service" -login="user@example.com" -password="secret123" -url="https://example.com"
+
+$ # edit an existing entry
+$ enp edit github.com -password="newsecret"
+
+$ # move an entry to trash
+$ enp trash github.com
+
+$ # restore an entry from trash
+$ enp restore github.com
+
+$ # permanently delete a trashed entry
+$ enp delete github.com
 ```
 
 Commands
@@ -33,7 +48,12 @@ Commands
 | `list FILTER` | List vault entries matching FILTER without password |
 | `show FILTER` | List vault entries matching FILTER with password |
 | `copy FILTER` | Copy the password of a vault entry matching FILTER to the clipboard |
-| `pass FILTER` | Print the password of a vaulty entry matching FILTER to stdout |
+| `pass FILTER` | Print the password of a vault entry matching FILTER to stdout |
+| `create` | Create a new entry in the vault |
+| `edit FILTER` | Edit an existing entry matching FILTER |
+| `trash FILTER` | Move an entry matching FILTER to the trash |
+| `restore FILTER` | Restore an entry matching FILTER from the trash |
+| `delete FILTER` | Permanently delete a trashed entry matching FILTER |
 | `dryrun` | Opens the vault without reading anything from it |
 | `version` | Print the version |
 | `help` | Print the help text |
@@ -53,6 +73,13 @@ Flags
 | `-sort` | Sort the output by title and username of the `list` and `show` command |
 | `-trashed` | Show trashed items in the `list` and `show` command |
 | `-clipboardPrimary` | Use primary X selection instead of clipboard for the `copy` command |
+| `-title=TITLE` | Title for `create`/`edit` commands |
+| `-login=LOGIN` | Login/username for `create`/`edit` commands |
+| `-password=PASSWORD` | Password for `create`/`edit` commands |
+| `-url=URL` | URL for `create`/`edit` commands |
+| `-notes=NOTES` | Notes for `create`/`edit` commands |
+| `-category=CATEGORY` | Category for `create`/`edit` commands (default: Login) |
+| `-force` | Skip confirmation prompts for `trash`/`delete` commands |
 
 Development
 -----

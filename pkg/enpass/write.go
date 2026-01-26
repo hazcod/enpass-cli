@@ -44,30 +44,36 @@ func (v *Vault) CreateEntry(entry *EntryData) (string, error) {
 	}
 	defer tx.Rollback()
 
-	// Insert into item table
+	// Encrypt password first to get the key
+	var encryptedValue string
+	var itemKey []byte
+	if entry.Password != "" {
+		var err error
+		encryptedValue, itemKey, err = EncryptValue(entry.Password, entryUUID)
+		if err != nil {
+			return "", errors.Wrap(err, "could not encrypt password")
+		}
+	}
+
+	// Insert into item table (key is stored here, not in itemfield)
 	_, err = tx.Exec(`
 		INSERT INTO item (
-			uuid, type, created_at, field_updated_at, title, subtitle,
-			note, trashed, deleted, category, icon, last_used
-		) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?)
-	`, entryUUID, "password", now, now, entry.Title, entry.Username,
-		entry.Notes, category, "card_password", now)
+			uuid, created_at, field_updated_at, title, subtitle,
+			note, trashed, deleted, category, icon, last_used, key
+		) VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?)
+	`, entryUUID, now, now, entry.Title, entry.Username,
+		entry.Notes, category, "card_password", now, itemKey)
 	if err != nil {
 		return "", errors.Wrap(err, "could not insert item")
 	}
 
-	// Encrypt and insert password field
+	// Insert password field (value only, key is in item table)
 	if entry.Password != "" {
-		encryptedValue, itemKey, err := EncryptValue(entry.Password, entryUUID)
-		if err != nil {
-			return "", errors.Wrap(err, "could not encrypt password")
-		}
-
 		_, err = tx.Exec(`
 			INSERT INTO itemfield (
-				item_uuid, label, value, key, deleted, sensitive, type
-			) VALUES (?, ?, ?, ?, 0, 1, ?)
-		`, entryUUID, "password", encryptedValue, itemKey, "password")
+				item_uuid, label, value, deleted, sensitive, type
+			) VALUES (?, ?, ?, 0, 1, ?)
+		`, entryUUID, "", encryptedValue, "password")
 		if err != nil {
 			return "", errors.Wrap(err, "could not insert password field")
 		}
@@ -77,9 +83,9 @@ func (v *Vault) CreateEntry(entry *EntryData) (string, error) {
 	if entry.Username != "" {
 		_, err = tx.Exec(`
 			INSERT INTO itemfield (
-				item_uuid, label, value, key, deleted, sensitive, type
-			) VALUES (?, ?, ?, NULL, 0, 0, ?)
-		`, entryUUID, "username", entry.Username, "username")
+				item_uuid, label, value, deleted, sensitive, type
+			) VALUES (?, ?, ?, 0, 0, ?)
+		`, entryUUID, "", entry.Username, "username")
 		if err != nil {
 			return "", errors.Wrap(err, "could not insert username field")
 		}
@@ -89,9 +95,9 @@ func (v *Vault) CreateEntry(entry *EntryData) (string, error) {
 	if entry.URL != "" {
 		_, err = tx.Exec(`
 			INSERT INTO itemfield (
-				item_uuid, label, value, key, deleted, sensitive, type
-			) VALUES (?, ?, ?, NULL, 0, 0, ?)
-		`, entryUUID, "url", entry.URL, "url")
+				item_uuid, label, value, deleted, sensitive, type
+			) VALUES (?, ?, ?, 0, 0, ?)
+		`, entryUUID, "", entry.URL, "url")
 		if err != nil {
 			return "", errors.Wrap(err, "could not insert URL field")
 		}
@@ -156,7 +162,7 @@ func (v *Vault) UpdateEntry(entryUUID string, updates *EntryData) error {
 		}
 
 		// Update or insert username field
-		result, err := tx.Exec("UPDATE itemfield SET value = ? WHERE item_uuid = ? AND label = ?",
+		result, err := tx.Exec("UPDATE itemfield SET value = ? WHERE item_uuid = ? AND type = ?",
 			updates.Username, entryUUID, "username")
 		if err != nil {
 			return errors.Wrap(err, "could not update username field")
@@ -164,33 +170,41 @@ func (v *Vault) UpdateEntry(entryUUID string, updates *EntryData) error {
 		rowsAffected, _ := result.RowsAffected()
 		if rowsAffected == 0 {
 			_, err = tx.Exec(`
-				INSERT INTO itemfield (item_uuid, label, value, key, deleted, sensitive, type)
-				VALUES (?, ?, ?, NULL, 0, 0, ?)
-			`, entryUUID, "username", updates.Username, "username")
+				INSERT INTO itemfield (item_uuid, label, value, deleted, sensitive, type)
+				VALUES (?, ?, ?, 0, 0, ?)
+			`, entryUUID, "", updates.Username, "username")
 			if err != nil {
 				return errors.Wrap(err, "could not insert username field")
 			}
 		}
 	}
 
-	// Update password (encrypted)
+	// Update password (encrypted) - key is stored in item table
 	if updates.Password != "" {
 		encryptedValue, itemKey, err := EncryptValue(updates.Password, entryUUID)
 		if err != nil {
 			return errors.Wrap(err, "could not encrypt password")
 		}
 
-		result, err := tx.Exec("UPDATE itemfield SET value = ?, key = ? WHERE item_uuid = ? AND label = ?",
-			encryptedValue, itemKey, entryUUID, "password")
+		// Update key in item table
+		_, err = tx.Exec("UPDATE item SET key = ?, field_updated_at = ? WHERE uuid = ?",
+			itemKey, now, entryUUID)
+		if err != nil {
+			return errors.Wrap(err, "could not update item key")
+		}
+
+		// Update password value in itemfield
+		result, err := tx.Exec("UPDATE itemfield SET value = ? WHERE item_uuid = ? AND type = ?",
+			encryptedValue, entryUUID, "password")
 		if err != nil {
 			return errors.Wrap(err, "could not update password field")
 		}
 		rowsAffected, _ := result.RowsAffected()
 		if rowsAffected == 0 {
 			_, err = tx.Exec(`
-				INSERT INTO itemfield (item_uuid, label, value, key, deleted, sensitive, type)
-				VALUES (?, ?, ?, ?, 0, 1, ?)
-			`, entryUUID, "password", encryptedValue, itemKey, "password")
+				INSERT INTO itemfield (item_uuid, label, value, deleted, sensitive, type)
+				VALUES (?, ?, ?, 0, 1, ?)
+			`, entryUUID, "", encryptedValue, "password")
 			if err != nil {
 				return errors.Wrap(err, "could not insert password field")
 			}
@@ -199,7 +213,7 @@ func (v *Vault) UpdateEntry(entryUUID string, updates *EntryData) error {
 
 	// Update URL
 	if updates.URL != "" {
-		result, err := tx.Exec("UPDATE itemfield SET value = ? WHERE item_uuid = ? AND label = ?",
+		result, err := tx.Exec("UPDATE itemfield SET value = ? WHERE item_uuid = ? AND type = ?",
 			updates.URL, entryUUID, "url")
 		if err != nil {
 			return errors.Wrap(err, "could not update URL field")
@@ -207,9 +221,9 @@ func (v *Vault) UpdateEntry(entryUUID string, updates *EntryData) error {
 		rowsAffected, _ := result.RowsAffected()
 		if rowsAffected == 0 {
 			_, err = tx.Exec(`
-				INSERT INTO itemfield (item_uuid, label, value, key, deleted, sensitive, type)
-				VALUES (?, ?, ?, NULL, 0, 0, ?)
-			`, entryUUID, "url", updates.URL, "url")
+				INSERT INTO itemfield (item_uuid, label, value, deleted, sensitive, type)
+				VALUES (?, ?, ?, 0, 0, ?)
+			`, entryUUID, "", updates.URL, "url")
 			if err != nil {
 				return errors.Wrap(err, "could not insert URL field")
 			}
@@ -311,12 +325,12 @@ func (v *Vault) GetEntryByUUID(entryUUID string) (*Card, error) {
 	}
 
 	row := v.db.QueryRow(`
-		SELECT uuid, type, created_at, field_updated_at, title,
-		       subtitle, note, trashed, item.deleted, category,
-		       label, value, key, last_used, sensitive, item.icon
+		SELECT item.uuid, itemfield.type, item.created_at, item.field_updated_at, item.title,
+		       item.subtitle, item.note, item.trashed, item.deleted, item.category,
+		       itemfield.label, itemfield.value, item.key, item.last_used, itemfield.sensitive, item.icon
 		FROM item
-		INNER JOIN itemfield ON uuid = item_uuid
-		WHERE uuid = ? AND sensitive = 1
+		INNER JOIN itemfield ON item.uuid = itemfield.item_uuid
+		WHERE item.uuid = ? AND itemfield.sensitive = 1
 		LIMIT 1
 	`, entryUUID)
 
