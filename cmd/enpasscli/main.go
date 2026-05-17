@@ -84,7 +84,7 @@ func (args *Args) parse() {
 	args.vaultPath = flag.String("vault", "", "Path to your Enpass vault.")
 	args.cardType = flag.String("type", "password", "The type of your card. (password, ...)")
 	args.keyFilePath = flag.String("keyfile", "", "Path to your Enpass vault keyfile.")
-	args.logLevelStr = flag.String("log", defaultLogLevel.String(), "The log level from debug (5) to error (1).")
+	args.logLevelStr = flag.String("log", defaultLogLevel.String(), "The log level: trace, debug, info, warn, error, fatal, panic.")
 	args.jsonOutput = flag.Bool("json", false, "Output data in JSON format.")
 	args.nonInteractive = flag.Bool("nonInteractive", false, "Disable prompts and fail instead.")
 	args.pinEnable = flag.Bool("pin", false, "Enable PIN.")

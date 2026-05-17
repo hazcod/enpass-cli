@@ -65,7 +65,7 @@ Flags
 | `-vault=PATH` | Path to your Enpass vault |
 | `-keyfile=PATH` | Path to your Enpass vault keyfile |
 | `-type=TYPE` | The type of your card (password, ...) |
-| `-log=LEVEL` | The log level from debug (5) to error (1) |
+| `-log=LEVEL` | The log level (trace, debug, info, warn, error, fatal, panic) |
 | `-nonInteractive` | Disable prompts and fail instead |
 | `-json` | Output as JSON to stdout |
 | `-pin` | Enable Quick Unlock using a PIN |
@@ -80,6 +80,15 @@ Flags
 | `-notes=NOTES` | Notes for `create`/`edit` commands |
 | `-category=CATEGORY` | Category for `create`/`edit` commands (default: Login) |
 | `-force` | Skip confirmation prompts for `trash`/`delete` commands |
+
+Environment Variables
+-----
+| Name | Description |
+| :---: | --- |
+| `MASTERPW` | Vault master password (skips the interactive prompt) |
+| `ENP_PIN` | PIN value when `-pin` is enabled (skips the PIN prompt) |
+| `ENP_PIN_PEPPER` | Pepper mixed into the PIN-derived key |
+| `ENP_PIN_ITER_COUNT` | KDF iteration count for the PIN (default: 100000) |
 
 Development
 -----
