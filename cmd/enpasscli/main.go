@@ -68,6 +68,7 @@ type Args struct {
 	pinEnable        *bool
 	sort             *bool
 	trashed          *bool
+	detailed         *bool
 	and              *bool
 	clipboardPrimary *bool
 	// write command flags
@@ -91,6 +92,7 @@ func (args *Args) parse() {
 	args.and = flag.Bool("and", false, "Combines filters with AND instead of default OR.")
 	args.sort = flag.Bool("sort", false, "Sort the output by title and username of the 'list' and 'show' command.")
 	args.trashed = flag.Bool("trashed", false, "Show trashed items in the 'list' and 'show' command.")
+	args.detailed = flag.Bool("detailed", false, "Show every field of each entry in 'list' and 'show'. Without this flag, only the original summary fields (title, login, category, label, type) are displayed.")
 	args.clipboardPrimary = flag.Bool("clipboardPrimary", false, "Use primary X selection instead of clipboard for the 'copy' command.")
 	// write command flags
 	args.title = flag.String("title", "", "Entry title (for create/edit).")
@@ -154,85 +156,221 @@ func sortEntries(cards []enpass.Card) {
 }
 
 func listEntries(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
-	cards, err := vault.GetEntries(*args.cardType, args.filters)
-	if err != nil {
-		logger.WithError(err).Fatal("could not retrieve cards")
-	}
-	if *args.sort {
-		sortEntries(cards)
-	}
-
-	data, err := prepareCardData(cards, false, args)
+	entries, err := collectEntries(vault, args, false)
 	if err != nil {
 		logger.WithError(err).Fatal(err.Error())
 	}
-
-	outputDataOrLog(logger, data, args)
+	outputEntriesOrLog(logger, entries, args)
 }
 
 func showEntries(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
-	cards, err := vault.GetEntries(*args.cardType, args.filters)
-	if err != nil {
-		logger.WithError(err).Fatal("could not retrieve cards")
-	}
-	if *args.sort {
-		sortEntries(cards)
-	}
-
-	data, err := prepareCardData(cards, true, args)
+	entries, err := collectEntries(vault, args, true)
 	if err != nil {
 		logger.WithError(err).Fatal(err.Error())
 	}
-
-	outputDataOrLog(logger, data, args)
+	outputEntriesOrLog(logger, entries, args)
 }
 
-func prepareCardData(cards []enpass.Card, includeDecrypted bool, args *Args) ([]map[string]string, error) {
-	data := make([]map[string]string, 0)
-	for _, card := range cards {
-		if card.IsTrashed() && !*args.trashed {
+// entryView is one Enpass item with all of its fields grouped together.
+type entryView struct {
+	UUID     string       `json:"uuid"`
+	Title    string       `json:"title"`
+	Subtitle string       `json:"subtitle,omitempty"`
+	Category string       `json:"category,omitempty"`
+	Trashed  bool         `json:"trashed,omitempty"`
+	Fields   []fieldView  `json:"fields"`
+}
+
+// fieldView is a single field of an entry (username, email, password, ...).
+// Value is empty when the field is sensitive and the caller didn't ask for
+// decrypted output (list mode).
+type fieldView struct {
+	Type      string `json:"type"`
+	Label     string `json:"label,omitempty"`
+	Sensitive bool   `json:"sensitive,omitempty"`
+	Value     string `json:"value,omitempty"`
+}
+
+// collectEntries fetches every field for matching entries and groups them by
+// item UUID. When includeSensitive is false, values of sensitive fields
+// (passwords) are omitted while non-sensitive fields like username/email are
+// still populated — this is what powers the "list shows usernames and emails
+// but not passwords" behavior.
+func collectEntries(vault *enpass.Vault, args *Args, includeSensitive bool) ([]entryView, error) {
+	// The -type flag defaults to "password" for the copy/pass commands. For
+	// list/show we want every field type, so treat the default as "no filter".
+	// Any other explicit value still filters server-side.
+	typeFilter := *args.cardType
+	if typeFilter == "password" {
+		typeFilter = ""
+	}
+
+	cards, err := vault.GetAllFields(typeFilter, args.filters)
+	if err != nil {
+		return nil, fmt.Errorf("could not retrieve cards: %w", err)
+	}
+
+	order := make([]string, 0)
+	groups := make(map[string]*entryView)
+	for _, c := range cards {
+		if c.IsDeleted() {
 			continue
 		}
-
-		cardMap := map[string]string{
-			"title":    card.Title,
-			"login":    card.Subtitle,
-			"category": card.Category,
-			"label":    card.Label,
-			"type":     card.Type,
+		if c.IsTrashed() && !*args.trashed {
+			continue
 		}
-
-		if includeDecrypted {
-			decrypted, err := card.Decrypt()
-			if err != nil {
-				return nil, fmt.Errorf("could not decrypt %s: %w", card.Title, err)
+		g, ok := groups[c.UUID]
+		if !ok {
+			g = &entryView{
+				UUID:     c.UUID,
+				Title:    c.Title,
+				Subtitle: c.Subtitle,
+				Category: c.Category,
+				Trashed:  c.IsTrashed(),
 			}
-			cardMap["password"] = decrypted
+			groups[c.UUID] = g
+			order = append(order, c.UUID)
 		}
-
-		data = append(data, cardMap)
+		f := fieldView{
+			Type:      c.Type,
+			Label:     c.Label,
+			Sensitive: c.Sensitive,
+		}
+		// Non-password field values are stored in cleartext; Decrypt() returns
+		// them as-is. For password fields, Decrypt() actually decrypts.
+		value, derr := c.Decrypt()
+		if derr != nil {
+			return nil, fmt.Errorf("could not decrypt %s/%s: %w", c.Title, c.Label, derr)
+		}
+		if includeSensitive || !c.Sensitive {
+			f.Value = value
+		}
+		g.Fields = append(g.Fields, f)
 	}
-	return data, nil
+
+	entries := make([]entryView, 0, len(order))
+	for _, uuid := range order {
+		entries = append(entries, *groups[uuid])
+	}
+	if *args.sort {
+		sort.SliceStable(entries, func(i, j int) bool {
+			return strings.ToLower(entries[i].Title) < strings.ToLower(entries[j].Title)
+		})
+	}
+	return entries, nil
 }
 
-func outputDataOrLog(logger *logrus.Logger, data []map[string]string, args *Args) {
+func outputEntriesOrLog(logger *logrus.Logger, entries []entryView, args *Args) {
+	if *args.detailed {
+		outputDetailed(logger, entries, args)
+		return
+	}
+	outputCompact(logger, entries, args)
+}
+
+// outputCompact reproduces the original list/show output: one row per entry
+// with the summary fields title, login, category, label, type — plus password
+// when present (show mode).
+func outputCompact(logger *logrus.Logger, entries []entryView, args *Args) {
+	type compactRow struct {
+		Title    string `json:"title"`
+		Login    string `json:"login"`
+		Category string `json:"category"`
+		Label    string `json:"label"`
+		Type     string `json:"type"`
+		Password string `json:"password,omitempty"`
+	}
+
+	rows := make([]compactRow, 0, len(entries))
+	for _, e := range entries {
+		anchor := anchorField(e.Fields)
+		row := compactRow{
+			Title:    e.Title,
+			Login:    e.Subtitle,
+			Category: e.Category,
+		}
+		if anchor != nil {
+			row.Label = anchor.Label
+			row.Type = anchor.Type
+			if anchor.Sensitive {
+				row.Password = anchor.Value
+			}
+		}
+		rows = append(rows, row)
+	}
+
 	if *args.jsonOutput {
-		jsonData, jsonErr := json.Marshal(data)
-		if jsonErr != nil {
-			logger.WithError(jsonErr).Fatal("could not marshal JSON data")
+		jsonData, err := json.Marshal(rows)
+		if err != nil {
+			logger.WithError(err).Fatal("could not marshal JSON data")
 		}
 		fmt.Println(string(jsonData))
-	} else {
-		for _, card := range data {
-			logger.Printf(
-				"> title: %s  login: %s  cat.: %s  label: %s",
-				card["title"],
-				card["login"],
-				card["category"],
-				card["label"],
-			)
+		return
+	}
+	for _, r := range rows {
+		format := "> title: %s  login: %s  cat.: %s  label: %s  type: %s"
+		vals := []any{r.Title, r.Login, r.Category, r.Label, r.Type}
+		if r.Password != "" {
+			format += "  password: %s"
+			vals = append(vals, r.Password)
+		}
+		logger.Printf(format, vals...)
+	}
+}
+
+// outputDetailed emits the grouped per-field view: one header line per entry
+// followed by an indented line per field.
+func outputDetailed(logger *logrus.Logger, entries []entryView, args *Args) {
+	if *args.jsonOutput {
+		jsonData, err := json.Marshal(entries)
+		if err != nil {
+			logger.WithError(err).Fatal("could not marshal JSON data")
+		}
+		fmt.Println(string(jsonData))
+		return
+	}
+	for _, e := range entries {
+		header := "> " + e.Title
+		if e.Subtitle != "" {
+			header += "  (" + e.Subtitle + ")"
+		}
+		if e.Category != "" {
+			header += "  cat.: " + e.Category
+		}
+		if e.Trashed {
+			header += "  [trashed]"
+		}
+		logger.Print(header)
+		for _, f := range e.Fields {
+			name := f.Label
+			if name == "" {
+				name = f.Type
+			}
+			switch {
+			case f.Sensitive && f.Value == "":
+				logger.Printf("    %s (%s): ********", name, f.Type)
+			case f.Value != "":
+				logger.Printf("    %s (%s): %s", name, f.Type, f.Value)
+			default:
+				logger.Printf("    %s (%s)", name, f.Type)
+			}
 		}
 	}
+}
+
+// anchorField picks the field that represents the entry in compact mode.
+// Mirrors the original GetEntries dedup: prefer the sensitive (password)
+// field, fall back to the first field.
+func anchorField(fields []fieldView) *fieldView {
+	for i := range fields {
+		if fields[i].Sensitive {
+			return &fields[i]
+		}
+	}
+	if len(fields) > 0 {
+		return &fields[0]
+	}
+	return nil
 }
 
 func copyEntry(logger *logrus.Logger, vault *enpass.Vault, args *Args) {

@@ -268,6 +268,43 @@ func (v *Vault) GetEntries(cardType string, filters []string) ([]Card, error) {
 	return cards, nil
 }
 
+// GetAllFields returns every itemfield row matching the filters, without
+// deduplicating by item UUID. Each returned Card represents a single field
+// (e.g. username, email, password) belonging to an entry. Use this when the
+// caller wants to display or operate on multiple fields per entry; use
+// GetEntries when the caller wants one Card per entry.
+func (v *Vault) GetAllFields(cardType string, filters []string) ([]Card, error) {
+	if v.db == nil || v.vaultInfo.VaultName == "" {
+		return nil, errors.New("vault is not initialized")
+	}
+
+	rows, err := v.executeEntryQuery(cardType, filters)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not retrieve cards from database")
+	}
+	defer rows.Close()
+
+	cards := make([]Card, 0)
+	for rows.Next() {
+		var card Card
+		if err := rows.Scan(
+			&card.UUID, &card.Type, &card.CreatedAt, &card.UpdatedAt, &card.Title,
+			&card.Subtitle, &card.Note, &card.Trashed, &card.Deleted, &card.Category,
+			&card.Label, &card.value, &card.itemKey, &card.LastUsed, &card.Sensitive, &card.Icon,
+		); err != nil {
+			return nil, errors.Wrap(err, "could not read card from database")
+		}
+		card.RawValue = card.value
+		cards = append(cards, card)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, errors.Wrap(err, "error iterating database rows")
+	}
+
+	return cards, nil
+}
+
 func (v *Vault) GetEntry(cardType string, filters []string, unique bool) (*Card, error) {
 	cards, err := v.GetEntries(cardType, filters)
 	if err != nil {
