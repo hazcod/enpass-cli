@@ -68,6 +68,7 @@ type Args struct {
 	pinEnable        *bool
 	sort             *bool
 	trashed          *bool
+	detailed         *bool
 	and              *bool
 	clipboardPrimary *bool
 	// write command flags
@@ -91,6 +92,7 @@ func (args *Args) parse() {
 	args.and = flag.Bool("and", false, "Combines filters with AND instead of default OR.")
 	args.sort = flag.Bool("sort", false, "Sort the output by title and username of the 'list' and 'show' command.")
 	args.trashed = flag.Bool("trashed", false, "Show trashed items in the 'list' and 'show' command.")
+	args.detailed = flag.Bool("detailed", false, "Show every field of each entry in 'list' and 'show'. Without this flag, only the original summary fields (title, login, category, label, type) are displayed.")
 	args.clipboardPrimary = flag.Bool("clipboardPrimary", false, "Use primary X selection instead of clipboard for the 'copy' command.")
 	// write command flags
 	args.title = flag.String("title", "", "Entry title (for create/edit).")
@@ -259,6 +261,66 @@ func collectEntries(vault *enpass.Vault, args *Args, includeSensitive bool) ([]e
 }
 
 func outputEntriesOrLog(logger *logrus.Logger, entries []entryView, args *Args) {
+	if *args.detailed {
+		outputDetailed(logger, entries, args)
+		return
+	}
+	outputCompact(logger, entries, args)
+}
+
+// outputCompact reproduces the original list/show output: one row per entry
+// with the summary fields title, login, category, label, type — plus password
+// when present (show mode).
+func outputCompact(logger *logrus.Logger, entries []entryView, args *Args) {
+	type compactRow struct {
+		Title    string `json:"title"`
+		Login    string `json:"login"`
+		Category string `json:"category"`
+		Label    string `json:"label"`
+		Type     string `json:"type"`
+		Password string `json:"password,omitempty"`
+	}
+
+	rows := make([]compactRow, 0, len(entries))
+	for _, e := range entries {
+		anchor := anchorField(e.Fields)
+		row := compactRow{
+			Title:    e.Title,
+			Login:    e.Subtitle,
+			Category: e.Category,
+		}
+		if anchor != nil {
+			row.Label = anchor.Label
+			row.Type = anchor.Type
+			if anchor.Sensitive {
+				row.Password = anchor.Value
+			}
+		}
+		rows = append(rows, row)
+	}
+
+	if *args.jsonOutput {
+		jsonData, err := json.Marshal(rows)
+		if err != nil {
+			logger.WithError(err).Fatal("could not marshal JSON data")
+		}
+		fmt.Println(string(jsonData))
+		return
+	}
+	for _, r := range rows {
+		format := "> title: %s  login: %s  cat.: %s  label: %s  type: %s"
+		vals := []any{r.Title, r.Login, r.Category, r.Label, r.Type}
+		if r.Password != "" {
+			format += "  password: %s"
+			vals = append(vals, r.Password)
+		}
+		logger.Printf(format, vals...)
+	}
+}
+
+// outputDetailed emits the grouped per-field view: one header line per entry
+// followed by an indented line per field.
+func outputDetailed(logger *logrus.Logger, entries []entryView, args *Args) {
 	if *args.jsonOutput {
 		jsonData, err := json.Marshal(entries)
 		if err != nil {
@@ -294,6 +356,21 @@ func outputEntriesOrLog(logger *logrus.Logger, entries []entryView, args *Args) 
 			}
 		}
 	}
+}
+
+// anchorField picks the field that represents the entry in compact mode.
+// Mirrors the original GetEntries dedup: prefer the sensitive (password)
+// field, fall back to the first field.
+func anchorField(fields []fieldView) *fieldView {
+	for i := range fields {
+		if fields[i].Sensitive {
+			return &fields[i]
+		}
+	}
+	if len(fields) > 0 {
+		return &fields[0]
+	}
+	return nil
 }
 
 func copyEntry(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
