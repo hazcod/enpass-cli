@@ -19,6 +19,9 @@ $ enp list twitter
 $ # show passwords of 'enpass.com'
 $ enp show enpass.com
 
+$ # show every field of every entry matching 'github' (incl. TOTP code)
+$ enp -detailed show github
+
 $ # copy password of 'reddit.com' entry to clipboard
 $ enp copy reddit.com
 
@@ -72,6 +75,7 @@ Flags
 | `-and` | Combines filters with AND instead of default OR |
 | `-sort` | Sort the output by title and username of the `list` and `show` command |
 | `-trashed` | Show trashed items in the `list` and `show` command |
+| `-detailed` | Show every field of each entry in `list` and `show` instead of only the summary fields (title, login, category, label, type) |
 | `-clipboardPrimary` | Use primary X selection instead of clipboard for the `copy` command |
 | `-title=TITLE` | Title for `create`/`edit` commands |
 | `-login=LOGIN` | Login/username for `create`/`edit` commands |
@@ -80,6 +84,18 @@ Flags
 | `-notes=NOTES` | Notes for `create`/`edit` commands |
 | `-category=CATEGORY` | Category for `create`/`edit` commands (default: Login) |
 | `-force` | Skip confirmation prompts for `trash`/`delete` commands |
+
+TOTP fields
+-----
+With `-detailed`, fields of type `totp` are treated as sensitive: their
+secret key is never displayed by the `list` command and the field is masked
+the same way passwords are. The `show` command computes the current
+[RFC 6238](https://datatracker.ietf.org/doc/html/rfc6238) code for the
+field and prints it alongside the secret key. Both bare base32 secrets and
+`otpauth://totp/...` URIs (honoring the `period`, `digits` and `algorithm`
+parameters) are supported. If the stored value can't be parsed, `show`
+prints `<dynamic TOTP value>` instead of a code so the user knows the field
+holds a generated value rather than a static one.
 
 Environment Variables
 -----

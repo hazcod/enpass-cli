@@ -340,8 +340,8 @@ func (v *Vault) executeEntryQuery(cardType string, filters []string) (*sql.Rows,
 		INNER JOIN itemfield ON uuid = item_uuid
 	`
 
-	where := []string{"item.deleted = ?"}
-	values := []interface{}{0}
+	where := []string{"item.deleted = ?", "itemfield.deleted = ?"}
+	values := []interface{}{0, 0}
 
 	if cardType != "" {
 		where = append(where, "type = ?")
@@ -366,6 +366,14 @@ func (v *Vault) executeEntryQuery(cardType string, filters []string) (*sql.Rows,
 	}
 
 	query += " WHERE " + strings.Join(where, " AND ")
+	// itemfield.orde is Enpass's per-entry display order (column name truncated
+	// from "order" to dodge the SQL keyword). Ordering by it keeps section
+	// headers and other fields in the order the user arranged them in the
+	// Enpass UI — without this, SQLite returns rows in arbitrary insertion
+	// order and sections (added later by edits) often drift to the end.
+	// We group by item_uuid first so each entry's fields stay contiguous when
+	// the grouping pass in the CLI builds entry views.
+	query += " ORDER BY item.uuid, itemfield.orde"
 	v.logger.Trace("query: ", query)
 	return v.db.Query(query, values...)
 }
