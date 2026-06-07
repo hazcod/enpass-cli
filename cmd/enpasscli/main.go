@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/hazcod/enpass-cli/pkg/clipboard"
@@ -126,8 +127,8 @@ func printHelp() {
 	fmt.Println("Usage: enpass-cli [flags] <command> [filters...]")
 	fmt.Println()
 	fmt.Println("Commands:")
-	fmt.Println("  list [filter]     List entries (without passwords)")
-	fmt.Println("  show [filter]     Show entries (with passwords)")
+	fmt.Println("  list [filter]     List entries (without passwords; TOTP fields masked)")
+	fmt.Println("  show [filter]     Show entries (with passwords; computes RFC 6238 TOTP code)")
 	fmt.Println("  copy <filter>     Copy password to clipboard")
 	fmt.Println("  pass <filter>     Print password to stdout")
 	fmt.Println("  ui                Interactive terminal UI")
@@ -139,6 +140,11 @@ func printHelp() {
 	fmt.Println("  dryrun            Test vault opening")
 	fmt.Println("  version           Print version")
 	fmt.Println("  help              Print this help")
+	fmt.Println()
+	fmt.Println("Pass -detailed to list/show to see every field of each entry instead of")
+	fmt.Println("only the summary fields (title, login, category, label, type). TOTP fields")
+	fmt.Println("are treated as sensitive: their secret is hidden in list, and show prints")
+	fmt.Println("the current RFC 6238 code alongside the secret.")
 	fmt.Println()
 	fmt.Println("Flags:")
 	flag.Usage()
@@ -183,12 +189,17 @@ type entryView struct {
 
 // fieldView is a single field of an entry (username, email, password, ...).
 // Value is empty when the field is sensitive and the caller didn't ask for
-// decrypted output (list mode).
+// decrypted output (list mode). For TOTP fields the stored Value is the
+// secret key, so it's treated as sensitive: hidden in list mode, included in
+// show mode. TOTPCode carries the current RFC 6238 code; TOTPError is set
+// when computing it failed.
 type fieldView struct {
 	Type      string `json:"type"`
 	Label     string `json:"label,omitempty"`
 	Sensitive bool   `json:"sensitive,omitempty"`
 	Value     string `json:"value,omitempty"`
+	TOTPCode  string `json:"totp_code,omitempty"`
+	TOTPError string `json:"totp_error,omitempty"`
 }
 
 // collectEntries fetches every field for matching entries and groups them by
@@ -219,6 +230,18 @@ func collectEntries(vault *enpass.Vault, args *Args, includeSensitive bool) ([]e
 		if c.IsTrashed() && !*args.trashed {
 			continue
 		}
+		// Non-password field values are stored in cleartext; Decrypt() returns
+		// them as-is. For password fields, Decrypt() actually decrypts.
+		value, derr := c.Decrypt()
+		if derr != nil {
+			return nil, fmt.Errorf("could not decrypt %s/%s: %w", c.Title, c.Label, derr)
+		}
+		// Match the Enpass native apps' view mode: hide empty-value template
+		// placeholders that a user never filled in (e.g. "Date Mod", "Field 6").
+		// Sections are visual dividers and stay even when empty.
+		if value == "" && c.Type != "section" {
+			continue
+		}
 		g, ok := groups[c.UUID]
 		if !ok {
 			g = &entryView{
@@ -236,13 +259,22 @@ func collectEntries(vault *enpass.Vault, args *Args, includeSensitive bool) ([]e
 			Label:     c.Label,
 			Sensitive: c.Sensitive,
 		}
-		// Non-password field values are stored in cleartext; Decrypt() returns
-		// them as-is. For password fields, Decrypt() actually decrypts.
-		value, derr := c.Decrypt()
-		if derr != nil {
-			return nil, fmt.Errorf("could not decrypt %s/%s: %w", c.Title, c.Label, derr)
+		isTOTP := c.Type == "totp"
+		hasValue := value != ""
+		// TOTP fields are classified as sensitive: in list mode neither the
+		// secret nor the live code is exposed. Only compute the code when the
+		// caller is going to display it.
+		if isTOTP && hasValue && includeSensitive {
+			if code, terr := enpass.ComputeTOTP(value, time.Now()); terr == nil {
+				f.TOTPCode = code
+			} else {
+				f.TOTPError = terr.Error()
+			}
 		}
-		if includeSensitive || !c.Sensitive {
+		if isTOTP && hasValue {
+			f.Sensitive = true
+		}
+		if includeSensitive || !f.Sensitive {
 			f.Value = value
 		}
 		g.Fields = append(g.Fields, f)
@@ -346,22 +378,65 @@ func outputDetailed(logger *logrus.Logger, entries []entryView, args *Args) {
 			if name == "" {
 				name = f.Type
 			}
+			// Three-level hierarchy: record header (no indent), section header
+			// (4 spaces), regular field (8 spaces). Regular fields are at the
+			// same depth whether the record has sections or not, so columns
+			// stay aligned across records.
+			indent := fieldIndent
+			if f.Type == "section" {
+				indent = sectionIndent
+			}
+			if f.Type == "totp" && (f.TOTPCode != "" || f.TOTPError != "") {
+				renderTOTPField(logger, indent, name, f)
+				continue
+			}
 			switch {
 			case f.Sensitive && f.Value == "":
-				logger.Printf("    %s (%s): ********", name, f.Type)
+				logger.Printf("%s%s (%s): ********", indent, name, f.Type)
 			case f.Value != "":
-				logger.Printf("    %s (%s): %s", name, f.Type, f.Value)
+				logger.Printf("%s%s (%s): %s", indent, name, f.Type, f.Value)
 			default:
-				logger.Printf("    %s (%s)", name, f.Type)
+				logger.Printf("%s%s (%s)", indent, name, f.Type)
 			}
 		}
 	}
 }
 
+const (
+	sectionIndent = "    "
+	fieldIndent   = "        "
+)
+
+// renderTOTPField prints a TOTP field. When the code could be computed we
+// show it; otherwise we tell the user the value is dynamic. The secret is
+// only included when collectEntries chose to expose it (i.e. show mode).
+func renderTOTPField(logger *logrus.Logger, indent, name string, f fieldView) {
+	parts := []string{}
+	switch {
+	case f.TOTPCode != "":
+		parts = append(parts, "code "+f.TOTPCode)
+	case f.TOTPError != "":
+		parts = append(parts, "<dynamic TOTP value>")
+	default:
+		logger.Printf("%s%s (%s)", indent, name, f.Type)
+		return
+	}
+	if f.Value != "" {
+		parts = append(parts, "secret: "+f.Value)
+	}
+	logger.Printf("%s%s (%s): %s", indent, name, f.Type, strings.Join(parts, "  "))
+}
+
 // anchorField picks the field that represents the entry in compact mode.
-// Mirrors the original GetEntries dedup: prefer the sensitive (password)
-// field, fall back to the first field.
+// Prefer the password field so the compact summary stays password-focused
+// even when other sensitive field types (e.g. TOTP) are present. Fall back
+// to any sensitive field, then to the first field.
 func anchorField(fields []fieldView) *fieldView {
+	for i := range fields {
+		if fields[i].Type == "password" {
+			return &fields[i]
+		}
+	}
 	for i := range fields {
 		if fields[i].Sensitive {
 			return &fields[i]
