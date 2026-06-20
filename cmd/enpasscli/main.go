@@ -37,6 +37,7 @@ const (
 	cmdTrash   = "trash"
 	cmdRestore = "restore"
 	cmdDelete  = "delete"
+	cmdEnv     = "env"
 
 	// defaults
 	defaultLogLevel        = logrus.InfoLevel
@@ -51,7 +52,7 @@ var (
 	commands = map[string]struct{}{
 		cmdVersion: {}, cmdHelp: {}, cmdDryRun: {}, cmdList: {},
 		cmdShow: {}, cmdCopy: {}, cmdPass: {}, cmdUi: {},
-		cmdCreate: {}, cmdEdit: {}, cmdTrash: {}, cmdRestore: {}, cmdDelete: {},
+		cmdCreate: {}, cmdEdit: {}, cmdTrash: {}, cmdRestore: {}, cmdDelete: {}, cmdEnv: {},
 	}
 )
 
@@ -72,6 +73,7 @@ type Args struct {
 	detailed         *bool
 	and              *bool
 	clipboardPrimary *bool
+	field            *string
 	// write command flags
 	title    *string
 	login    *string
@@ -95,6 +97,7 @@ func (args *Args) parse() {
 	args.trashed = flag.Bool("trashed", false, "Show trashed items in the 'list' and 'show' command.")
 	args.detailed = flag.Bool("detailed", false, "Show every field of each entry in 'list' and 'show'. Without this flag, only the original summary fields (title, login, category, label, type) are displayed.")
 	args.clipboardPrimary = flag.Bool("clipboardPrimary", false, "Use primary X selection instead of clipboard for the 'copy' command.")
+	args.field = flag.String("field", "", "Field label to extract (default: password). Used with 'env' command.")
 	// write command flags
 	args.title = flag.String("title", "", "Entry title (for create/edit).")
 	args.login = flag.String("login", "", "Username or email (for create/edit).")
@@ -131,6 +134,7 @@ func printHelp() {
 	fmt.Println("  show [filter]     Show entries (with passwords; computes RFC 6238 TOTP code)")
 	fmt.Println("  copy <filter>     Copy password to clipboard")
 	fmt.Println("  pass <filter>     Print password to stdout")
+	fmt.Println("  env [filter]      Output entry field as KEY=VALUE for shell eval")
 	fmt.Println("  ui                Interactive terminal UI")
 	fmt.Println("  create            Create a new entry")
 	fmt.Println("  edit <filter>     Edit an existing entry")
@@ -145,6 +149,11 @@ func printHelp() {
 	fmt.Println("only the summary fields (title, login, category, label, type). TOTP fields")
 	fmt.Println("are treated as sensitive: their secret is hidden in list, and show prints")
 	fmt.Println("the current RFC 6238 code alongside the secret.")
+	fmt.Println()
+	fmt.Println("The env command outputs vault values as shell-safe KEY='value' lines.")
+	fmt.Println("Use -field to select a specific field label (default: password).")
+	fmt.Println("  eval $(enpass-cli -vault /path env MY_SECRET=\"entry title\")")
+	fmt.Println("  eval $(enpass-cli -vault /path env -field \"Access Key\" AWS_KEY=\"AWS\")")
 	fmt.Println()
 	fmt.Println("Flags:")
 	flag.Usage()
@@ -480,6 +489,116 @@ func entryPassword(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
 	} else {
 		fmt.Println(decrypted)
 	}
+}
+
+func envEntries(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
+	if len(args.filters) == 0 {
+		logger.Fatal("env command requires at least one VARNAME=filter argument")
+	}
+
+	type envPair struct {
+		Name  string
+		Value string
+	}
+
+	var pairs []envPair
+
+	for _, arg := range args.filters {
+		eqIdx := strings.Index(arg, "=")
+		if eqIdx < 1 {
+			logger.Fatalf("invalid argument %q: expected VARNAME=filter", arg)
+		}
+
+		varName := arg[:eqIdx]
+		filter := arg[eqIdx+1:]
+
+		var value string
+
+		if *args.field == "" {
+			card, err := vault.GetEntry(*args.cardType, []string{filter}, true)
+			if err != nil {
+				logger.WithError(err).Fatalf("could not retrieve entry for %s", varName)
+			}
+
+			decrypted, err := card.Decrypt()
+			if err != nil {
+				logger.WithError(err).Fatalf("could not decrypt entry for %s", varName)
+			}
+
+			value = decrypted
+		} else {
+			cards, err := vault.GetAllFields(*args.cardType, []string{filter})
+			if err != nil {
+				logger.WithError(err).Fatalf("could not retrieve fields for %s", varName)
+			}
+
+			// Group by entry UUID and enforce uniqueness.
+			entries := make(map[string][]enpass.Card)
+			var order []string
+			for _, c := range cards {
+				if c.IsDeleted() || c.IsTrashed() {
+					continue
+				}
+				if _, seen := entries[c.UUID]; !seen {
+					order = append(order, c.UUID)
+				}
+				entries[c.UUID] = append(entries[c.UUID], c)
+			}
+
+			if len(entries) == 0 {
+				logger.Fatalf("no entry found matching filter for %s", varName)
+			}
+			if len(entries) > 1 {
+				logger.Fatalf("multiple entries match filter for %s, refine your filter", varName)
+			}
+
+			// Find the field matching -field label.
+			fields := entries[order[0]]
+			var match *enpass.Card
+			for i, c := range fields {
+				if strings.EqualFold(c.Label, *args.field) {
+					match = &fields[i]
+					break
+				}
+			}
+
+			if match == nil {
+				logger.Fatalf("no field %q found in entry for %s", *args.field, varName)
+			}
+
+			decrypted, err := match.Decrypt()
+			if err != nil {
+				logger.WithError(err).Fatalf("could not decrypt field %q for %s", *args.field, varName)
+			}
+
+			value = decrypted
+		}
+
+		pairs = append(pairs, envPair{Name: varName, Value: value})
+	}
+
+	if *args.jsonOutput {
+		result := make(map[string]string, len(pairs))
+		for _, p := range pairs {
+			result[p.Name] = p.Value
+		}
+
+		jsonData, err := json.Marshal(result)
+		if err != nil {
+			logger.WithError(err).Fatal("could not marshal JSON output")
+		}
+
+		fmt.Println(string(jsonData))
+		return
+	}
+
+	for _, p := range pairs {
+		fmt.Printf("%s='%s'\n", p.Name, shellQuote(p.Value))
+	}
+}
+
+func shellQuote(s string) string {
+	return strings.ReplaceAll(s, "'", "'\\''")
 }
 
 func ui(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
@@ -893,6 +1012,8 @@ func main() {
 		trashEntry(logger, vault, args)
 	case cmdRestore:
 		restoreEntry(logger, vault, args)
+	case cmdEnv:
+		envEntries(logger, vault, args)
 	case cmdDelete:
 		deleteEntry(logger, vault, args)
 	default:
