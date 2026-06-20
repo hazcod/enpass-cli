@@ -134,7 +134,7 @@ func printHelp() {
 	fmt.Println("  show [filter]     Show entries (with passwords; computes RFC 6238 TOTP code)")
 	fmt.Println("  copy <filter>     Copy password to clipboard")
 	fmt.Println("  pass <filter>     Print password to stdout")
-	fmt.Println("  env [filter]      Output entry field as KEY=VALUE for shell eval")
+	fmt.Println("  env VARNAME=filter  Output entry field as KEY=VALUE for shell eval")
 	fmt.Println("  ui                Interactive terminal UI")
 	fmt.Println("  create            Create a new entry")
 	fmt.Println("  edit <filter>     Edit an existing entry")
@@ -496,12 +496,10 @@ func envEntries(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
 		logger.Fatal("env command requires at least one VARNAME=filter argument")
 	}
 
-	type envPair struct {
-		Name  string
-		Value string
+	var jsonResult map[string]string
+	if *args.jsonOutput {
+		jsonResult = make(map[string]string, len(args.filters))
 	}
-
-	var pairs []envPair
 
 	for _, arg := range args.filters {
 		eqIdx := strings.Index(arg, "=")
@@ -511,6 +509,15 @@ func envEntries(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
 
 		varName := arg[:eqIdx]
 		filter := arg[eqIdx+1:]
+
+		for _, r := range varName {
+			if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_') {
+				logger.Fatalf("invalid variable name %q: must contain only letters, digits, and underscores", varName)
+			}
+		}
+		if varName[0] >= '0' && varName[0] <= '9' {
+			logger.Fatalf("invalid variable name %q: must not start with a digit", varName)
+		}
 
 		var value string
 
@@ -527,7 +534,12 @@ func envEntries(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
 
 			value = decrypted
 		} else {
-			cards, err := vault.GetAllFields(*args.cardType, []string{filter})
+			typeFilter := *args.cardType
+			if typeFilter == "password" {
+				typeFilter = ""
+			}
+
+			cards, err := vault.GetAllFields(typeFilter, []string{filter})
 			if err != nil {
 				logger.WithError(err).Fatalf("could not retrieve fields for %s", varName)
 			}
@@ -574,26 +586,19 @@ func envEntries(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
 			value = decrypted
 		}
 
-		pairs = append(pairs, envPair{Name: varName, Value: value})
+		if jsonResult != nil {
+			jsonResult[varName] = value
+		} else {
+			fmt.Printf("%s='%s'\n", varName, shellQuote(value))
+		}
 	}
 
-	if *args.jsonOutput {
-		result := make(map[string]string, len(pairs))
-		for _, p := range pairs {
-			result[p.Name] = p.Value
-		}
-
-		jsonData, err := json.Marshal(result)
+	if jsonResult != nil {
+		jsonData, err := json.Marshal(jsonResult)
 		if err != nil {
 			logger.WithError(err).Fatal("could not marshal JSON output")
 		}
-
 		fmt.Println(string(jsonData))
-		return
-	}
-
-	for _, p := range pairs {
-		fmt.Printf("%s='%s'\n", p.Name, shellQuote(p.Value))
 	}
 }
 
