@@ -56,6 +56,24 @@ builds:
       - CXX=arm-linux-gnueabihf-g++
     ldflags:
       - -s -w -X main.version={{.Version}}
+  - id: windows-amd64
+    main: ./cmd/enpasscli/main.go
+    binary: enpasscli
+    goos:
+      - windows
+    goarch:
+      - amd64
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+  - id: windows-arm64
+    main: ./cmd/enpasscli/main.go
+    binary: enpasscli
+    goos:
+      - windows
+    goarch:
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}}
 
 archives:
   - id: enpass-cli
