@@ -72,6 +72,7 @@ type Args struct {
 	trashed          *bool
 	detailed         *bool
 	and              *bool
+	exact            *bool
 	clipboardPrimary *bool
 	field            *string
 	// write command flags
@@ -93,6 +94,7 @@ func (args *Args) parse() {
 	args.nonInteractive = flag.Bool("nonInteractive", false, "Disable prompts and fail instead.")
 	args.pinEnable = flag.Bool("pin", false, "Enable PIN.")
 	args.and = flag.Bool("and", false, "Combines filters with AND instead of default OR.")
+	args.exact = flag.Bool("exact", false, "Matches filters against the entire title/subtitle (case-insensitive) instead of as substrings.")
 	args.sort = flag.Bool("sort", false, "Sort the output by title and username of the 'list' and 'show' command.")
 	args.trashed = flag.Bool("trashed", false, "Show trashed items in the 'list' and 'show' command.")
 	args.detailed = flag.Bool("detailed", false, "Show every field of each entry in 'list' and 'show'. Without this flag, only the original summary fields (title, login, category, label, type) are displayed.")
@@ -833,6 +835,7 @@ func trashEntry(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
 func restoreEntry(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
 	// For restore, we need to look in trashed items
 	vault.FilterAnd = *args.and
+	vault.FilterExact = *args.exact
 	cards, err := vault.GetEntries(*args.cardType, args.filters)
 	if err != nil {
 		logger.WithError(err).Fatal("could not retrieve entries")
@@ -870,6 +873,7 @@ func restoreEntry(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
 func deleteEntry(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
 	// For delete, we need to look in trashed items
 	vault.FilterAnd = *args.and
+	vault.FilterExact = *args.exact
 	cards, err := vault.GetEntries(*args.cardType, args.filters)
 	if err != nil {
 		logger.WithError(err).Fatal("could not retrieve entries")
@@ -975,6 +979,7 @@ func main() {
 		logger.WithError(err).Fatal("could not create vault")
 	}
 	vault.FilterAnd = *args.and
+	vault.FilterExact = *args.exact
 
 	var store *unlock.SecureStore
 	if !*args.pinEnable {
