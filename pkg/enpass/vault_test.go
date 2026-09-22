@@ -79,6 +79,27 @@ func TestVault_GetEntries_Filter_AND(t *testing.T) {
 	Assert_GetEntries(t, vault, []string{"inexistent", "alsoinexistent"}, 0)
 }
 
+func TestVault_GetEntries_Filter_Exact(t *testing.T) {
+	vault, err := NewVault(vaultPath, logrus.ErrorLevel)
+	if err != nil {
+		t.Errorf("vault initialization failed: %+v", err)
+	}
+	defer vault.Close()
+	credentials := &VaultCredentials{Password: testPassword}
+	if err := vault.Open(credentials); err != nil {
+		t.Errorf("opening vault failed: %+v", err)
+	}
+
+	vault.FilterExact = true
+
+	Assert_GetEntries(t, vault, []string{"Whatever"}, 1)              // matches full title
+	Assert_GetEntries(t, vault, []string{"whatever"}, 1)              // case-insensitive
+	Assert_GetEntries(t, vault, []string{"What"}, 0)                  // substring no longer matches
+	Assert_GetEntries(t, vault, []string{"johndoe@whatever.com"}, 1)  // matches full subtitle
+	Assert_GetEntries(t, vault, []string{"johndoe"}, 0)               // subtitle substring no longer matches
+	Assert_GetEntries(t, vault, []string{"What", "Whatever"}, 1)      // OR: one exact match suffices
+}
+
 func TestVault_GetEntries_Filter_Fields(t *testing.T) {
 	vault, err := NewVault(vaultPath, logrus.ErrorLevel)
 	if err != nil {

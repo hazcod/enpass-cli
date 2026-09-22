@@ -73,6 +73,7 @@ Flags
 | `-json` | Output as JSON to stdout |
 | `-pin` | Enable Quick Unlock using a PIN |
 | `-and` | Combines filters with AND instead of default OR |
+| `-exact` | Matches filters against the entire title/subtitle (case-insensitive) instead of as substrings |
 | `-sort` | Sort the output by title and username of the `list` and `show` command |
 | `-trashed` | Show trashed items in the `list` and `show` command |
 | `-detailed` | Show every field of each entry in `list` and `show` instead of only the summary fields (title, login, category, label, type) |

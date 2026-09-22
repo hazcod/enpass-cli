@@ -29,6 +29,7 @@ type Vault struct {
 	// settings for filtering entries
 	FilterFields []string
 	FilterAnd    bool
+	FilterExact  bool
 
 	// vault.enpassdb : SQLCipher database
 	databaseFilename string
@@ -352,7 +353,11 @@ func (v *Vault) executeEntryQuery(cardType string, filters []string) (*sql.Rows,
 	for _, filter := range filters {
 		fq := "(0"
 		for _, field := range v.FilterFields {
-			fq += " + instr(lower(" + field + "), ?)"
+			if v.FilterExact {
+				fq += " + (lower(" + field + ") = ?)"
+			} else {
+				fq += " + instr(lower(" + field + "), ?)"
+			}
 			values = append(values, strings.ToLower(filter))
 		}
 		fq += " > 0)"
