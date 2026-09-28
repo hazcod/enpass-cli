@@ -72,6 +72,7 @@ Flags
 | `-nonInteractive` | Disable prompts and fail instead |
 | `-json` | Output as JSON to stdout |
 | `-pin` | Enable Quick Unlock using a PIN |
+| `-biometric` | Enable macOS biometric unlock through Keychain |
 | `-and` | Combines filters with AND instead of default OR |
 | `-exact` | Matches filters against the entire title/subtitle (case-insensitive) instead of as substrings |
 | `-sort` | Sort the output by title and username of the `list` and `show` command |
@@ -106,6 +107,8 @@ Environment Variables
 | `ENP_PIN` | PIN value when `-pin` is enabled (skips the PIN prompt) |
 | `ENP_PIN_PEPPER` | Pepper mixed into the PIN-derived key |
 | `ENP_PIN_ITER_COUNT` | KDF iteration count for the PIN (default: 100000) |
+
+Biometric unlock is available on macOS. On first use, run with `-biometric` and enter your vault master password; after the vault opens, enpass-cli stores the derived database key in Keychain behind Touch ID or the device passcode. Later `-biometric` runs unlock by reading that Keychain item.
 
 Development
 -----

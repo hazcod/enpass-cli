@@ -68,6 +68,7 @@ type Args struct {
 	jsonOutput       *bool
 	nonInteractive   *bool
 	pinEnable        *bool
+	biometricEnable  *bool
 	sort             *bool
 	trashed          *bool
 	detailed         *bool
@@ -85,6 +86,11 @@ type Args struct {
 	force    *bool
 }
 
+type credentialStore interface {
+	Read() ([]byte, error)
+	Write([]byte) error
+}
+
 func (args *Args) parse() {
 	args.vaultPath = flag.String("vault", "", "Path to your Enpass vault.")
 	args.cardType = flag.String("type", "password", "The type of your card. (password, ...)")
@@ -93,6 +99,7 @@ func (args *Args) parse() {
 	args.jsonOutput = flag.Bool("json", false, "Output data in JSON format.")
 	args.nonInteractive = flag.Bool("nonInteractive", false, "Disable prompts and fail instead.")
 	args.pinEnable = flag.Bool("pin", false, "Enable PIN.")
+	args.biometricEnable = flag.Bool("biometric", false, "Enable macOS biometric unlock.")
 	args.and = flag.Bool("and", false, "Combines filters with AND instead of default OR.")
 	args.exact = flag.Bool("exact", false, "Matches filters against the entire title/subtitle (case-insensitive) instead of as substrings.")
 	args.sort = flag.Bool("sort", false, "Sort the output by title and username of the 'list' and 'show' command.")
@@ -695,7 +702,7 @@ func ui(logger *logrus.Logger, vault *enpass.Vault, args *Args) {
 	}
 }
 
-func assembleVaultCredentials(logger *logrus.Logger, args *Args, store *unlock.SecureStore) *enpass.VaultCredentials {
+func assembleVaultCredentials(logger *logrus.Logger, args *Args, store credentialStore) *enpass.VaultCredentials {
 	credentials := &enpass.VaultCredentials{
 		Password:    os.Getenv("MASTERPW"),
 		KeyfilePath: *args.keyFilePath,
@@ -740,6 +747,16 @@ func initializeStore(logger *logrus.Logger, args *Args) *unlock.SecureStore {
 
 	if err := store.GeneratePassphrase(pin, pepper, int(pinKdfIterCount)); err != nil {
 		logger.WithError(err).Fatal("could not initialize store")
+	}
+
+	return store
+}
+
+func initializeBiometricStore(logger *logrus.Logger, args *Args) *unlock.BiometricStore {
+	vaultPath, _ := filepath.EvalSymlinks(*args.vaultPath)
+	store, err := unlock.NewBiometricStore(vaultPath, logger.Level)
+	if err != nil {
+		logger.WithError(err).Fatal("could not create biometric store")
 	}
 
 	return store
@@ -981,13 +998,21 @@ func main() {
 	vault.FilterAnd = *args.and
 	vault.FilterExact = *args.exact
 
-	var store *unlock.SecureStore
-	if !*args.pinEnable {
-		logger.Debug("PIN disabled")
-	} else {
+	if *args.pinEnable && *args.biometricEnable {
+		logger.Fatal("-pin and -biometric cannot be used together")
+	}
+
+	var store credentialStore
+	if *args.pinEnable {
 		logger.Debug("PIN enabled, using store")
 		store = initializeStore(logger, args)
 		logger.Debug("initialized store")
+	} else if *args.biometricEnable {
+		logger.Debug("biometric unlock enabled, using store")
+		store = initializeBiometricStore(logger, args)
+		logger.Debug("initialized biometric store")
+	} else {
+		logger.Debug("PIN disabled")
 	}
 
 	credentials := assembleVaultCredentials(logger, args, store)
