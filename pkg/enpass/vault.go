@@ -217,7 +217,7 @@ func (v *Vault) Close() {
 // login, incoming server, outgoing server fields). This function deduplicates
 // by UUID, preferring the sensitive field (typically the password).
 func (v *Vault) GetEntries(cardType string, filters []string) ([]Card, error) {
-	if v.db == nil || v.vaultInfo.VaultName == "" {
+	if v.db == nil {
 		return nil, errors.New("vault is not initialized")
 	}
 
@@ -275,7 +275,7 @@ func (v *Vault) GetEntries(cardType string, filters []string) ([]Card, error) {
 // caller wants to display or operate on multiple fields per entry; use
 // GetEntries when the caller wants one Card per entry.
 func (v *Vault) GetAllFields(cardType string, filters []string) ([]Card, error) {
-	if v.db == nil || v.vaultInfo.VaultName == "" {
+	if v.db == nil {
 		return nil, errors.New("vault is not initialized")
 	}
 
