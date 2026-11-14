@@ -10,45 +10,75 @@ import (
 	"github.com/pkg/errors"
 )
 
+// NewItemKey returns a fresh 44-byte item key: a 32-byte AES-256 key followed
+// by a 12-byte GCM nonce. Enpass stores this blob in item.key and uses it for
+// every sensitive field of that item.
+func NewItemKey() ([]byte, error) {
+	itemKey := make([]byte, 44)
+	if _, err := rand.Read(itemKey); err != nil {
+		return nil, errors.Wrap(err, "could not generate random item key")
+	}
+
+	return itemKey, nil
+}
+
 // EncryptValue encrypts a plaintext value using AES-256-GCM.
 // Returns the hex-encoded ciphertext and the 44-byte key (32-byte AES key + 12-byte nonce).
 // The uuid (without dashes) is used as Additional Authenticated Data (AAD).
 func EncryptValue(plaintext string, uuid string) (encryptedValue string, itemKey []byte, err error) {
-	// Generate random 32-byte AES key
-	key := make([]byte, 32)
-	if _, err := rand.Read(key); err != nil {
-		return "", nil, errors.Wrap(err, "could not generate random key")
+	itemKey, err = NewItemKey()
+	if err != nil {
+		return "", nil, err
 	}
 
-	// Generate random 12-byte nonce for GCM
-	nonce := make([]byte, 12)
-	if _, err := rand.Read(nonce); err != nil {
-		return "", nil, errors.Wrap(err, "could not generate random nonce")
+	encryptedValue, err = EncryptValueWithKey(plaintext, uuid, itemKey)
+	if err != nil {
+		return "", nil, err
 	}
+
+	return encryptedValue, itemKey, nil
+}
+
+// EncryptValueWithKey encrypts plaintext with an existing item key.
+//
+// Enpass keeps one key per item, not one per field: every sensitive row of an
+// item is encrypted with the same 32-byte key and 12-byte nonce, which is why
+// two fields holding the same value have byte-identical ciphertext. Reusing the
+// existing key on update therefore keeps every other sensitive field of the
+// item decryptable; generating a new key and storing only the updated field
+// would leave the remaining fields encrypted under the old, discarded key.
+//
+// itemKey must be exactly 44 bytes. The uuid (without dashes) is used as AAD,
+// so the ciphertext is bound to the item.
+//
+// Example: EncryptValueWithKey("hunter2", uuid, existingKey)
+func EncryptValueWithKey(plaintext string, uuid string, itemKey []byte) (encryptedValue string, err error) {
+	if len(itemKey) != 44 {
+		return "", errors.Errorf("item key must be 44 bytes (32 key + 12 nonce), got %d", len(itemKey))
+	}
+
+	key := itemKey[:32]
+	nonce := itemKey[32:]
 
 	// Create cipher
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return "", nil, errors.Wrap(err, "could not create cipher")
+		return "", errors.Wrap(err, "could not create cipher")
 	}
 
 	aesgcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return "", nil, errors.Wrap(err, "could not create GCM")
+		return "", errors.Wrap(err, "could not create GCM")
 	}
 
 	// AAD is the UUID without dashes
 	aad, err := hex.DecodeString(strings.ReplaceAll(uuid, "-", ""))
 	if err != nil {
-		return "", nil, errors.Wrap(err, "could not decode UUID for AAD")
+		return "", errors.Wrap(err, "could not decode UUID for AAD")
 	}
 
 	// Encrypt (output includes authentication tag)
 	ciphertextAndTag := aesgcm.Seal(nil, nonce, []byte(plaintext), aad)
 
-	// Return hex-encoded ciphertext and key+nonce
-	encryptedValue = hex.EncodeToString(ciphertextAndTag)
-	itemKey = append(key, nonce...)
-
-	return encryptedValue, itemKey, nil
+	return hex.EncodeToString(ciphertextAndTag), nil
 }
