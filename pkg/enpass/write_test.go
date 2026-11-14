@@ -8,6 +8,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// NOTE: these tests skip when the vault cannot be opened and only assert that
+// an entry round-trips through this package's own reader. They do not check the
+// row shape the desktop app needs (item.template, item_field_uid, orde, the
+// vault.json counters), which is why a writer that made Enpass 6.12 crash could
+// still pass. Tightening them into structural assertions is a deliberate
+// follow-up so this change stays focused on the write path.
+
 func copyTestVault(t *testing.T) string {
 	t.Helper()
 	tmpDir, err := os.MkdirTemp("", "enpass-test-*")
